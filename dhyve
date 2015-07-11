@@ -92,6 +92,7 @@ update_dhyve () {
     echo -n "[dhyve] updating.."
     curl -Lso "$(which dhyve)" "https://raw.githubusercontent.com/nlf/dhyve/master/dhyve"
     echo "done"
+    exit 0
 }
 
 download_boot2docker () {
@@ -175,8 +176,12 @@ vm_init () {
 
     echo -n "[dhyve] creating nfs export.."
     local exports=$(get_exports)
-    grep -q "$exports" /etc/hosts || echo "$exports" >> /etc/exports
-    nfsd restart
+    touch /etc/exports
+    grep -q "$exports" /etc/exports
+    if [ $? -ne 0 ]; then
+        echo "$exports" >> /etc/exports
+        nfsd restart >/dev/null 2>&1
+    fi
     echo "done"
 
     echo -n "[dhyve] generating a disk image.."
@@ -210,6 +215,13 @@ vm_up () {
     fi
 
     echo -n "[dhyve] starting.."
+    local exports=$(get_exports)
+    touch /etc/exports
+    grep -q "$exports" /etc/exports
+    if [ $? -ne 0 ]; then
+        echo "$exports" >> /etc/exports
+        nfsd restart >/dev/null 2>&1
+    fi
     local args=$(cat "$HOME/.dhyve/vm.args")
     local cmdline=$(cat "$HOME/.dhyve/vm.cmdline")
     nohup xhyve $args,"$cmdline" </dev/null >/dev/null 2>&1 &
