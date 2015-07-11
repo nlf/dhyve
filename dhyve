@@ -4,18 +4,20 @@ print_help () {
     echo "Usage: dhyve <command> [options]"
     echo ""
     echo "  available commands:"
-    echo "    init:   initialize a new vm"
-    echo "    up:     start the dhyve vm"
-    echo "    down:   stop the dhyve vm"
-    echo "    ssh:    login to the vm via ssh"
-    echo "    status: print the vm's status"
-    echo "    env:    output environment variables to use docker with the dhyve vm"
-    echo "            to use, eval \"\$(dhyve env)\""
+    echo "    init:    initialize a new vm"
+    echo "    up:      start the dhyve vm"
+    echo "    down:    stop the dhyve vm"
+    echo "    ssh:     login to the vm via ssh"
+    echo "    status:  print the vm's status"
+    echo "    env:     output environment variables to use docker with the dhyve vm"
+    echo "             to use, eval \"\$(dhyve env)\""
+    echo "    update:  update the dhyve script"
+    echo "    upgrade: upgrade your vm to the newest boot2docker image"
     echo ""
     echo "  available options for init command"
-    echo "    -m:     amount of memory to allocate to the vm [2G]"
-    echo "    -d:     size of disk to create, in gigabytes [10]"
-    echo "    -c:     number of cpus to assign [1]"
+    echo "    -m:      amount of memory to allocate to the vm [2G]"
+    echo "    -d:      size of disk to create, in gigabytes [10]"
+    echo "    -c:      number of cpus to assign [1]"
     return 1
 }
 
@@ -38,6 +40,34 @@ get_ip () {
         print ip_addresses["'$trimmed'"]
     }
     ' /var/db/dhcpd_leases
+}
+
+update_dhyve () {
+    if [ ! -w "$(which dhyve)" ]; then
+        echo "[dhyve] this command requires root permissions"
+        sudo "$0" "update"
+        exit
+    fi
+
+    echo -n "[dhyve] updating.."
+    curl -Lso "$(which dhyve)" "https://raw.githubusercontent.com/nlf/dhyve/master/dhyve"
+    echo "done"
+}
+
+download_boot2docker () {
+    curl -Lso "$HOME/.dhyve/vmlinuz64" "https://transfer.sh/1b1MUY/vmlinuz64"
+    curl -Lso "$HOME/.dhyve/initrd.img" "https://transfer.sh/wdMFq/initrd.img"
+}
+
+upgrade_boot2docker () {
+    if [ -e "$HOME/.dhyve/vm.pid" ]; then
+        echo "[dhyve] vm is currently running, please stop it first"
+        return 1
+    fi
+
+    echo -n "[dhyve] upgrading.."
+    download_boot2docker
+    echo "done"
 }
 
 vm_init () {
@@ -109,12 +139,12 @@ vm_init () {
     mkdir -p "$tempdir/.ssh"
     cp "$HOME/.dhyve/dhyve_key.pub" "$tempdir/.ssh/authorized_keys"
     tar cf "$HOME/.dhyve/disk.img" --directory="$tempdir" "boot2docker, please format-me" ".ssh/authorized_keys"
+    echo -n "."
     dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/disk.img" 2>/dev/null
     echo "done"
 
     echo -n "[dhyve] fetching boot2docker.."
-    curl -Lso "$HOME/.dhyve/vmlinuz64" "https://transfer.sh/1b1MUY/vmlinuz64"
-    curl -Lso "$HOME/.dhyve/initrd.img" "https://transfer.sh/wdMFq/initrd.img"
+    download_boot2docker
     echo "done"
 
     chown -R $SUDO_USER "$HOME/.dhyve"
@@ -234,6 +264,12 @@ case "$cmd" in
         ;;
     env)
         vm_env
+        ;;
+    update)
+        update_dhyve
+        ;;
+    upgrade)
+        upgrade_boot2docker
         ;;
     *)
         print_help
