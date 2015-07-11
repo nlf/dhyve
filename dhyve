@@ -8,6 +8,7 @@ print_help () {
     echo "    up:      start the dhyve vm"
     echo "    down:    stop the dhyve vm"
     echo "    ssh:     login to the vm via ssh"
+    echo "    scp:     pass configuration to scp to allow copying files to/from the dhyve vm"
     echo "    status:  print the vm's status"
     echo "    env:     output environment variables to use docker with the dhyve vm"
     echo "             to use, eval \"\$(dhyve env)\""
@@ -235,6 +236,15 @@ vm_ssh () {
     ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm
 }
 
+vm_scp () {
+    if [ ! -e "$HOME/.dhyve/vm.pid" ]; then
+        echo "[dhyve] not yet started"
+        return 1
+    fi
+
+    scp -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@"
+}
+
 vm_env () {
     local mac=$(cat "$HOME/.dhyve/vm.mac")
     local ip=$(get_ip $mac)
@@ -265,6 +275,9 @@ case "$cmd" in
         ;;
     ssh)
         vm_ssh
+        ;;
+    scp)
+        vm_scp "$@"
         ;;
     env)
         vm_env
