@@ -172,6 +172,10 @@ vm_up () {
         echo -n "."
         sleep 0.5
     done
+    local mac=$(cat "$HOME/.dhyve/vm.mac")
+    local ip=$(get_ip $mac)
+    sed -i '' "s/.* dhyve.vm$/$ip dhyve.vm/g" /etc/hosts
+    grep -q "$ip dhyve.vm" /etc/hosts || echo "$ip dhyve.vm" >> /etc/hosts
     echo "done"
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
@@ -217,7 +221,7 @@ vm_status () {
     echo "        mac:    $mac"
     if [ "$status" == "running" ]; then
         echo "        pid:    $(cat "$HOME/.dhyve/vm.pid")"
-        echo "        ip:     $(get_ip "$mac")"
+        echo "        ip:     $(get_ip "$mac") [dhyve.vm]"
     fi
 }
 
@@ -228,7 +232,7 @@ vm_ssh () {
     fi
 
     echo "[dhyve] starting ssh session.."
-    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$(get_ip $(cat "$HOME/.dhyve/vm.mac"))
+    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm
 }
 
 vm_env () {
