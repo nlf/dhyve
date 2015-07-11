@@ -19,4 +19,6 @@ eval "$(dhyve env)"
 
 And now you can use docker like normal.
 
+Ports exposed from a docker container will be available on the vm, which will have an entry in `/etc/hosts` as `dhyve.vm` to make it easier to access.
+
 See `dhyve help` for more usage information.
