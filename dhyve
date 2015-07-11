@@ -48,24 +48,28 @@ vm_init () {
     fi
 
     if [ -d "$HOME/.dhyve" ]; then
-        echo "[dhyve] it looks like you've already created a dhyve machine"
-        read -p "[dhyve] would you like to delete it and start over? (y/n) " choice
+        read -p "[dhyve] it looks like you've already created a dhyve machine, would you like to delete it and start over? (y/n) " choice
         case "$choice" in
             y|Y)
+                if [ -e "$HOME/.dhyve/vm.pid" ]; then
+                    echo "[dhyve] your vm is currently running, please stop it first"
+                    return 1
+                fi
                 rm -rf "$HOME/.dhyve"
                 ;;
             n|N)
-                exit 1
+                return 1
                 ;;
         esac
     fi
 
     mkdir -p $HOME/.dhyve
 
-    echo "[dhyve] getting a mac address.."
+    echo -n "[dhyve] getting a mac address.."
     local uuid=$(uuidgen)
     local mac=$(uuid2mac "$uuid")
     echo "$mac" > "$HOME/.dhyve/vm.mac"
+    echo "done"
 
     local mem=2G
     local disk=10
@@ -88,26 +92,30 @@ vm_init () {
         esac
     done
 
-    echo "[dhyve] saving options.."
+    echo -n "[dhyve] saving options.."
     local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/vmlinuz64,$HOME/.dhyve/initrd.img"
     local cmdline="loglevel=3 user=docker console=ttyS0 noembed nomodeset norestore waitusb=10:LABEL=boot2docker-data base"
     echo "$args" > "$HOME/.dhyve/vm.args"
     echo "$cmdline" > "$HOME/.dhyve/vm.cmdline"
+    echo "done"
 
-    echo "[dhyve] generating a new ssh key.."
+    echo -n "[dhyve] generating a new ssh key.."
     ssh-keygen -t rsa -b 2048 -P "" -f "$HOME/.dhyve/dhyve_key" >/dev/null 2>&1
+    echo "done"
 
-    echo "[dhyve] generating a disk image.."
+    echo -n "[dhyve] generating a disk image.."
     local tempdir=$(mktemp -d -t dhyve)
     echo "boot2docker, please format-me" > "$tempdir/boot2docker, please format-me"
     mkdir -p "$tempdir/.ssh"
     cp "$HOME/.dhyve/dhyve_key.pub" "$tempdir/.ssh/authorized_keys"
     tar cf "$HOME/.dhyve/disk.img" --directory="$tempdir" "boot2docker, please format-me" ".ssh/authorized_keys"
     dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/disk.img" 2>/dev/null
+    echo "done"
 
-    echo "[dhyve] fetching boot2docker.."
+    echo -n "[dhyve] fetching boot2docker.."
     curl -Lso "$HOME/.dhyve/vmlinuz64" "https://transfer.sh/1b1MUY/vmlinuz64"
     curl -Lso "$HOME/.dhyve/initrd.img" "https://transfer.sh/wdMFq/initrd.img"
+    echo "done"
 
     chown -R $SUDO_USER "$HOME/.dhyve"
     echo "[dhyve] finished creating vm, to start it run 'dhyve up'"
@@ -125,15 +133,16 @@ vm_up () {
         return 1
     fi
 
-    echo "[dhyve] starting.."
+    echo -n "[dhyve] starting.."
     local args=$(cat "$HOME/.dhyve/vm.args")
     local cmdline=$(cat "$HOME/.dhyve/vm.cmdline")
     nohup xhyve $args,"$cmdline" </dev/null >/dev/null 2>&1 &
     echo $! > "$HOME/.dhyve/vm.pid"
-    until scp -r -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$(get_ip $(cat "$HOME/.dhyve/vm.mac")):.docker "$HOME/.dhyve/certs" >/dev/null 2>&1; do
+    until scp -r -i "$HOME/.dhyve/dhyve_key" -o ConnectTimeout=4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$(get_ip $(cat "$HOME/.dhyve/vm.mac")):.docker "$HOME/.dhyve/certs" >/dev/null 2>&1; do
+        echo -n "."
         sleep 0.5
     done
-    echo "[dhyve] started"
+    echo "done"
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
 
@@ -149,14 +158,15 @@ vm_down () {
         exit
     fi
 
-    echo "[dhyve] stopping.."
+    echo -n "[dhyve] stopping.."
     local pid=$(cat "$HOME/.dhyve/vm.pid")
     kill $pid
     while ps $pid >/dev/null; do
+        echo -n "."
         sleep 0.5
     done
     rm "$HOME/.dhyve/vm.pid"
-    echo "[dhyve] stopped"
+    echo "done"
 }
 
 vm_status () {
@@ -187,6 +197,7 @@ vm_ssh () {
         return 1
     fi
 
+    echo "[dhyve] starting ssh session.."
     ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$(get_ip $(cat "$HOME/.dhyve/vm.mac"))
 }
 
