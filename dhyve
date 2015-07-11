@@ -43,6 +43,45 @@ get_ip () {
     ' /var/db/dhcpd_leases
 }
 
+# this function copied from https://github.com/ailispaw/boot2docker-xhyve and modified lightly
+get_exports () {
+    local vmnet="/Library/Preferences/SystemConfiguration/com.apple.vmnet"
+    local addr=$(defaults read ${vmnet} Shared_Net_Address)
+    local mask=$(defaults read ${vmnet} Shared_Net_Mask)
+
+    function ip2num() {
+      local IFS=.
+      local ip=($1)
+      printf "%s\n" $(( (${ip[0]} << 24) | (${ip[1]} << 16) | (${ip[2]} << 8) | ${ip[3]} ))
+    }
+
+    function num2ip() {
+      local n=$1
+      printf "%d.%d.%d.%d\n" \
+        $(( $n >> 24 )) $(( ($n >> 16) & 0xFF )) $(( ($n >> 8) & 0xFF )) $(( $n & 0xFF ))
+    }
+
+    local num=$(( $(ip2num ${addr}) & $(ip2num ${mask}) ))
+    local net=$(num2ip ${num})
+
+    echo "/Users -network ${net} -mask ${mask} -alldirs -mapall=$(id -u $SUDO_USER):$(id -g $SUDO_USER)"
+}
+
+get_bootsync () {
+    local tempfile=$(mktemp -t dhyve)
+    echo '#!/bin/sh' > "$tempfile"
+    echo 'mkdir -p /Users' >> "$tempfile"
+    echo 'umount /Users' >> "$tempfile"
+    echo '/usr/local/etc/init.d/nfs-client start' >> "$tempfile"
+    echo 'GW_IP=$(ip route get 8.8.8.8 | awk '"'"'NR==1 {print $3}'"'"')' >> "$tempfile"
+    echo 'if [ -n "${GW_IP}" ]; then' >> "$tempfile"
+    echo '    mount ${GW_IP}:/Users /Users -o rw,async,noatime,rsize=32768,wsize=32768,proto=tcp' >> "$tempfile"
+    echo 'fi' >> "$tempfile"
+
+    chmod +x "$tempfile"
+    echo "$tempfile"
+}
+
 update_dhyve () {
     if [ ! -w "$(which dhyve)" ]; then
         echo "[dhyve] this command requires root permissions"
@@ -134,6 +173,12 @@ vm_init () {
     ssh-keygen -t rsa -b 2048 -P "" -f "$HOME/.dhyve/dhyve_key" >/dev/null 2>&1
     echo "done"
 
+    echo -n "[dhyve] creating nfs export.."
+    local exports=$(get_exports)
+    grep -q "$exports" /etc/hosts || echo "$exports" >> /etc/exports
+    nfsd restart
+    echo "done"
+
     echo -n "[dhyve] generating a disk image.."
     local tempdir=$(mktemp -d -t dhyve)
     echo "boot2docker, please format-me" > "$tempdir/boot2docker, please format-me"
@@ -177,6 +222,13 @@ vm_up () {
     local ip=$(get_ip $mac)
     sed -i '' "s/.* dhyve.vm$/$ip dhyve.vm/g" /etc/hosts
     grep -q "$ip dhyve.vm" /etc/hosts || echo "$ip dhyve.vm" >> /etc/hosts
+    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm ls /var/lib/boot2docker/bootsync.sh >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        local bootsync=$(get_bootsync)
+        scp -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$bootsync" docker@dhyve.vm:bootsync.sh >/dev/null 2>&1
+        ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm sudo mv bootsync.sh /var/lib/boot2docker/bootsync.sh >/dev/null 2>&1
+        ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm sudo /var/lib/boot2docker/bootsync.sh >/dev/null 2>&1
+    fi
     echo "done"
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
@@ -233,7 +285,7 @@ vm_ssh () {
     fi
 
     echo "[dhyve] starting ssh session.."
-    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm
+    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm "$@"
 }
 
 vm_scp () {
@@ -274,7 +326,7 @@ case "$cmd" in
         vm_status
         ;;
     ssh)
-        vm_ssh
+        vm_ssh "$@"
         ;;
     scp)
         vm_scp "$@"

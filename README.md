@@ -31,4 +31,6 @@ And now you can use docker like normal.
 
 Ports exposed from a docker container will be available on the vm, which will have an entry in `/etc/hosts` as `dhyve.vm` to make it easier to access.
 
+An NFS share is created on your host to expose the `/Users` directory to the vm network as well. It will *only* allow connections from the dhyve vm, so should be reasonable secure.
+
 See `dhyve help` for more usage information.
