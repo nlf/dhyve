@@ -2,6 +2,16 @@ A little helper script to make running boot2docker inside of xhyve simple
 
 Usage:
 
+Pull down this repo, and update submodules
+
+```bash
+git clone git@github.com:nlf/dhyve.git
+git submodule init
+git submodule update
+```
+
+Install dhyve
+
 ```bash
 make
 make install
