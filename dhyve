@@ -138,7 +138,7 @@ vm_init () {
 
     echo -n "[dhyve] getting a mac address.."
     local uuid=$(uuidgen)
-    local mac=$(uuid2mac "$uuid")
+    local mac=$(xhyve-uuid2mac "$uuid")
     echo "$mac" > "$HOME/.dhyve/vm.mac"
     echo "done"
 
