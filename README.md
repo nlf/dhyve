@@ -6,6 +6,7 @@ Pull down this repo, and update submodules
 
 ```bash
 git clone git@github.com:nlf/dhyve.git
+cd dhyve
 git submodule init
 git submodule update
 ```
