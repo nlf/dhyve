@@ -5,7 +5,7 @@ all: xhyve/build/xhyve boot2docker-xhyve/uuid2ip/build/uuid2mac
 
 install: all
 	@install -CSv xhyve/build/xhyve $(PREFIX)/bin/
-	@install -CSv boot2docker-xhyve/uuid2ip/build/uuid2mac $(PREFIX)/bin/
+	@install -CSv boot2docker-xhyve/uuid2ip/build/uuid2mac $(PREFIX)/bin/xhyve-uuid2mac
 	@install -CSv dhyve $(PREFIX)/bin/
 
 xhyve/build/xhyve:
