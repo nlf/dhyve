@@ -96,8 +96,8 @@ update_dhyve () {
 }
 
 download_boot2docker () {
-    curl -Lso "$HOME/.dhyve/vmlinuz64" "https://transfer.sh/1b1MUY/vmlinuz64"
-    curl -Lso "$HOME/.dhyve/initrd.img" "https://transfer.sh/wdMFq/initrd.img"
+    curl -Lso "$HOME/.dhyve/vmlinuz64" "https://github.com/nlf/dhyve/releases/download/v1.0.0/vmlinuz64"
+    curl -Lso "$HOME/.dhyve/initrd.img" "https://github.com/nlf/dhyve/releases/download/v1.0.0/initrd.img"
 }
 
 upgrade_boot2docker () {
