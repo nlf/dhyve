@@ -1,6 +1,3 @@
 [submodule "xhyve"]
 	path = xhyve
 	url = git://github.com/mist64/xhyve.git
-[submodule "boot2docker-xhyve"]
-	path = boot2docker-xhyve
-	url = git://github.com/ailispaw/boot2docker-xhyve.git

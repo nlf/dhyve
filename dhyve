@@ -26,15 +26,15 @@ get_ip () {
     local trimmed=$(echo $1 | sed 's/0\([0-9a-fA-F]:\)/\1/g')
     awk '
     {
+      if ($1 ~ /^name/) {
+        name=substr($1, 6)
+      }
       if ($1 ~ /^ip_address/) {
         ip_address=substr($1, 12)
       }
-      if ($1 ~ /^hw_address/) {
-        hw_address=substr($1, 14)
-      }
-      if (hw_address != "" && ip_address != "") {
-        ip_addresses[hw_address]=ip_address
-        hw_address=ip_address=""
+      if (name != "" && ip_address != "") {
+        ip_addresses[name]=ip_address
+        name=ip_address=""
       }
     }
     END {
@@ -136,10 +136,10 @@ vm_init () {
 
     mkdir -p $HOME/.dhyve
 
-    echo -n "[dhyve] getting a mac address.."
-    local uuid=$(uuidgen)
-    local mac=$(uuid2mac "$uuid")
-    echo "$mac" > "$HOME/.dhyve/vm.mac"
+    echo -n "[dhyve] generating a UUID.."
+    local uuid="2996454B-06DE-43B0-9FC6-9E9F38D1DCAE" # $(uuidgen)
+    local name="dhyve"
+    echo "$name" > "$HOME/.dhyve/vm.name"
     echo "done"
 
     local mem=2G
@@ -165,7 +165,7 @@ vm_init () {
 
     echo -n "[dhyve] saving options.."
     local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/vmlinuz64,$HOME/.dhyve/initrd.img"
-    local cmdline="loglevel=3 user=docker console=ttyS0 noembed nomodeset norestore waitusb=10:LABEL=boot2docker-data base"
+    local cmdline="loglevel=3 user=docker console=ttyS0 noembed nomodeset norestore waitusb=10:LABEL=boot2docker-data base host=$name"
     echo "$args" > "$HOME/.dhyve/vm.args"
     echo "$cmdline" > "$HOME/.dhyve/vm.cmdline"
     echo "done"
@@ -226,12 +226,12 @@ vm_up () {
     local cmdline=$(cat "$HOME/.dhyve/vm.cmdline")
     nohup xhyve $args,"$cmdline" </dev/null >/dev/null 2>&1 &
     echo $! > "$HOME/.dhyve/vm.pid"
-    until scp -r -i "$HOME/.dhyve/dhyve_key" -o ConnectTimeout=4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$(get_ip $(cat "$HOME/.dhyve/vm.mac")):.docker "$HOME/.dhyve/certs" >/dev/null 2>&1; do
+    until scp -r -i "$HOME/.dhyve/dhyve_key" -o ConnectTimeout=4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$(get_ip $(cat "$HOME/.dhyve/vm.name")):.docker "$HOME/.dhyve/certs" >/dev/null 2>&1; do
         echo -n "."
         sleep 0.5
     done
-    local mac=$(cat "$HOME/.dhyve/vm.mac")
-    local ip=$(get_ip $mac)
+    local name=$(cat "$HOME/.dhyve/vm.name")
+    local ip=$(get_ip $name)
     sed -i '' "s/.* dhyve.vm$/$ip dhyve.vm/g" /etc/hosts
     grep -q "$ip dhyve.vm" /etc/hosts || echo "$ip dhyve.vm" >> /etc/hosts
     ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm ls /var/lib/boot2docker/bootsync.sh >/dev/null 2>&1
@@ -281,12 +281,12 @@ vm_status () {
         status="stopped"
     fi
 
-    local mac=$(cat "$HOME/.dhyve/vm.mac")
+    local name=$(cat "$HOME/.dhyve/vm.name")
     echo "[dhyve] status: $status"
-    echo "        mac:    $mac"
+    echo "        name:   $name"
     if [ "$status" == "running" ]; then
         echo "        pid:    $(cat "$HOME/.dhyve/vm.pid")"
-        echo "        ip:     $(get_ip "$mac") [dhyve.vm]"
+        echo "        ip:     $(get_ip "$name") [dhyve.vm]"
     fi
     echo "        disk:   $(du -h "$HOME/.dhyve/disk.img")"
     echo "        args:   $(cat "$HOME/.dhyve/vm.args")"
@@ -313,8 +313,8 @@ vm_scp () {
 }
 
 vm_env () {
-    local mac=$(cat "$HOME/.dhyve/vm.mac")
-    local ip=$(get_ip $mac)
+    local name=$(cat "$HOME/.dhyve/vm.name")
+    local ip=$(get_ip $name)
     if [ -z "$ip" ]; then
         echo "[dhyve] not yet started"
         return 1

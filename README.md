@@ -18,7 +18,7 @@ make
 make install
 ```
 
-This will install `dhyve` itself, [xhyve](https://github.com/mist64/xhyve) as well as uuid2mac which was shamelessly lifted from [boot2docker-xhyve](https://github.com/ailispaw/boot2docker-xhyve).
+This will install `dhyve` itself and [xhyve](https://github.com/mist64/xhyve).
 
 Note: you may have to use `sudo` when running `make install` if `/usr/local/bin` isn't writable by your user. Also you'll want to make sure `/usr/local/bin` is in your `PATH` environment variable.
 
