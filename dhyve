@@ -1,4 +1,5 @@
 #!/bin/bash
+#dhyve_version: v1.0.0
 
 print_help () {
     echo "Usage: dhyve <command> [options]"
@@ -96,6 +97,16 @@ get_latest_version () {
     echo $version
 }
 
+get_installed_version () {
+    local dhyve=$(which dhyve)
+    local version=$(cat "$dhyve" | awk -F' ' '/dhyve_version/ { print $2; exit }')
+    if [ -z "$version" ]; then
+        version="unknown"
+    fi
+
+    echo $version
+}
+
 update_dhyve () {
     if [ ! -w "$(which dhyve)" ]; then
         echo "[dhyve] this command requires root permissions"
@@ -114,22 +125,15 @@ update_dhyve () {
         curl -Lso "$tempdir/dhyve.tar.gz" "https://github.com/nlf/dhyve/archive/$version.tar.gz"
         tar xf "$tempdir/dhyve.tar.gz" -C "$tempdir" --strip-components 1
         install -CS "$tempdir/dhyve" "$(which dhyve)"
-        echo "$version" > "$HOME/.dhyve/dhyve.version"
     }
 
     local tempdir
-    if [ -e "$HOME/.dhyve/dhyve.version" ]; then
-        if [ "$(cat $HOME/.dhyve/dhyve.version)" != "$version" ]; then
-            echo -n "[dhyve] upgrading to version $version.."
-            do_update
-            echo "done"
-        else
-            echo "[dhyve] latest version ($version) already installed"
-        fi
-    else
+    if [ "$version" != "$(get_installed_version)" ]; then
         echo -n "[dhyve] upgrading to version $version.."
         do_update
         echo "done"
+    else
+        echo "[dhyve] latest version ($version) already installed"
     fi
 
     exit 0
@@ -362,12 +366,7 @@ vm_status () {
     echo "        args:   $(cat "$HOME/.dhyve/vm.args")"
     echo "        kparam: $(cat "$HOME/.dhyve/vm.cmdline")"
     echo "        versions:"
-
-    local client_version="unknown"
-    if [ -e "$HOME/.dhyve/dhyve.version" ]; then
-        client_version=$(cat "$HOME/.dhyve/dhyve.version")
-    fi
-    echo "            cient: $client_version"
+    echo "            cient: $(get_installed_version)"
 
     local vm_version="unknown"
     if [ -e "$HOME/.dhyve/vm.version" ]; then
