@@ -5,16 +5,13 @@ Usage:
 Pull down this repo, and update submodules
 
 ```bash
-git clone git@github.com:nlf/dhyve.git
+git clone --recursive git@github.com:nlf/dhyve.git
 cd dhyve
-git submodule init
-git submodule update
 ```
 
 Install dhyve
 
 ```bash
-make
 make install
 ```
 
