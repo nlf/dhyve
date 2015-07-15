@@ -87,7 +87,7 @@ get_latest_version () {
     if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
         args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
     fi
-    local version=$(curl -s "$args" https://api.github.com/repos/nlf/dhyve/releases/latest | pcregrep -o '(?<="tag_name":\s")v[0-9]+\.[0-9]+\.[0-9]+')
+    local version=$(curl -s "$args" https://api.github.com/repos/nlf/dhyve/releases/latest | awk -F'"' '/tag_name/ { print $4 }')
     if [ -z "$version" ]; then
         echo "[dhyve] failed to retrieve latest version information"
         exit 1
