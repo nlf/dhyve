@@ -82,6 +82,20 @@ get_bootsync () {
     echo "$tempfile"
 }
 
+get_latest_version () {
+    local args=''
+    if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
+        args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
+    fi
+    local version=$(curl -s "$args" https://api.github.com/repos/nlf/dhyve/releases/latest | pcregrep -o '(?<="tag_name":\s")v[0-9]+\.[0-9]+\.[0-9]+')
+    if [ -z "$version" ]; then
+        echo "[dhyve] failed to retrieve latest version information"
+        exit 1
+    fi
+
+    echo $version
+}
+
 update_dhyve () {
     if [ ! -w "$(which dhyve)" ]; then
         echo "[dhyve] this command requires root permissions"
@@ -89,26 +103,76 @@ update_dhyve () {
         exit
     fi
 
-    echo -n "[dhyve] updating.."
-    curl -Lso "$(which dhyve)" "https://raw.githubusercontent.com/nlf/dhyve/master/dhyve"
-    echo "done"
+    local version; version=$(get_latest_version)
+    if [ $? != 0 ]; then
+        echo "$version"
+        exit 1
+    fi
+
+    do_update () {
+        tempdir=$(mktemp -d -t dhyve)
+        curl -Lso "$tempdir/dhyve.tar.gz" "https://github.com/nlf/dhyve/archive/$version.tar.gz"
+        tar xf "$tempdir/dhyve.tar.gz" -C "$tempdir" --strip-components 1
+        install -CS "$tempdir/dhyve" "$(which dhyve)"
+        echo "$version" > "$HOME/.dhyve/dhyve.version"
+    }
+
+    local tempdir
+    if [ -e "$HOME/.dhyve/dhyve.version" ]; then
+        if [ "$(cat $HOME/.dhyve/dhyve.version)" != "$version" ]; then
+            echo -n "[dhyve] upgrading to version $version.."
+            do_update
+            echo "done"
+        else
+            echo "[dhyve] latest version ($version) already installed"
+        fi
+    else
+        echo -n "[dhyve] upgrading to version $version.."
+        do_update
+        echo "done"
+    fi
+
     exit 0
 }
 
 download_boot2docker () {
-    curl -Lso "$HOME/.dhyve/vmlinuz64" "https://github.com/nlf/dhyve/releases/download/v1.0.0/vmlinuz64"
-    curl -Lso "$HOME/.dhyve/initrd.img" "https://github.com/nlf/dhyve/releases/download/v1.0.0/initrd.img"
+    local version=$1
+
+    curl -Lso "$HOME/.dhyve/vmlinuz64" "https://github.com/nlf/dhyve/releases/download/$version/vmlinuz64"
+    curl -Lso "$HOME/.dhyve/initrd.img" "https://github.com/nlf/dhyve/releases/download/$version/initrd.img"
+    echo "$version" > "$HOME/.dhyve/vm.version"
 }
 
 upgrade_boot2docker () {
+    if [ ! -d "$HOME/.dhyve" ]; then
+        echo "[dhyve] no virtual machine exists, create one with dhyve init"
+        return 1
+    fi
+
     if [ -e "$HOME/.dhyve/vm.pid" ]; then
         echo "[dhyve] vm is currently running, please stop it first"
         return 1
     fi
 
-    echo -n "[dhyve] upgrading.."
-    download_boot2docker
-    echo "done"
+    local version; version=$(get_latest_version)
+    if [ $? != 0 ]; then
+        echo "$version"
+        return 1
+    fi
+
+    if [ -e "$HOME/.dhyve/vm.version" ]; then
+        if [ "$(cat $HOME/.dhyve/vm.version)" != "$version" ]; then
+            echo -n "[dhyve] upgrading vm to version $version.."
+            download_boot2docker "$version"
+            echo "done"
+        else
+            echo "[dhyve] latest vm version ($version) already installed"
+        fi
+    else
+        echo -n "[dhyve] upgrading vm to version $version.."
+        download_boot2docker "$version"
+        echo "done"
+    fi
 }
 
 vm_init () {
@@ -194,8 +258,14 @@ vm_init () {
     dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/disk.img" 2>/dev/null
     echo "done"
 
-    echo -n "[dhyve] fetching boot2docker.."
-    download_boot2docker
+    local version; version=$(get_latest_version)
+    if [ $? != 0 ]; then
+        echo "$version"
+        return 1
+    fi
+
+    echo -n "[dhyve] fetching dhyve vm $version.."
+    download_boot2docker "$version"
     echo "done"
 
     chown -R $SUDO_USER "$HOME/.dhyve"
@@ -291,6 +361,19 @@ vm_status () {
     echo "        disk:   $(du -h "$HOME/.dhyve/disk.img")"
     echo "        args:   $(cat "$HOME/.dhyve/vm.args")"
     echo "        kparam: $(cat "$HOME/.dhyve/vm.cmdline")"
+    echo "        versions:"
+
+    local client_version="unknown"
+    if [ -e "$HOME/.dhyve/dhyve.version" ]; then
+        client_version=$(cat "$HOME/.dhyve/dhyve.version")
+    fi
+    echo "            cient: $client_version"
+
+    local vm_version="unknown"
+    if [ -e "$HOME/.dhyve/vm.version" ]; then
+        vm_version=$(cat "$HOME/.dhyve/vm.version")
+    fi
+    echo "            vm: $vm_version"
 }
 
 vm_ssh () {
