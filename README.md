@@ -5,16 +5,13 @@ Usage:
 Pull down this repo, and update submodules
 
 ```bash
-git clone git@github.com:nlf/dhyve.git
+git clone --recursive git@github.com:nlf/dhyve.git
 cd dhyve
-git submodule init
-git submodule update
 ```
 
 Install dhyve
 
 ```bash
-make
 make install
 ```
 
@@ -35,3 +32,12 @@ Ports exposed from a docker container will be available on the vm, which will ha
 An NFS share is created on your host to expose the `/Users` directory to the vm network as well. It will *only* allow connections from the dhyve vm, so should be reasonably secure.
 
 See `dhyve help` for more usage information.
+
+
+CREDITS
+-------
+
+This project draws code and inspiration from prior works. Thank you!
+
+- [ailispaw/boot2docker-xhyve](https://github.com/ailispaw/boot2docker-xhyve)
+- [boot2docker/boot2docker](https://github.com/boot2docker/boot2docker)
