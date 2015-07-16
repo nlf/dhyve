@@ -366,13 +366,13 @@ vm_status () {
     echo "        args:   $(cat "$HOME/.dhyve/vm.args")"
     echo "        kparam: $(cat "$HOME/.dhyve/vm.cmdline")"
     echo "        versions:"
-    echo "            cient: $(get_installed_version)"
+    echo "            client: $(get_installed_version)"
 
     local vm_version="unknown"
     if [ -e "$HOME/.dhyve/vm.version" ]; then
         vm_version=$(cat "$HOME/.dhyve/vm.version")
     fi
-    echo "            vm: $vm_version"
+    echo "            vm:     $vm_version"
 }
 
 vm_ssh () {
