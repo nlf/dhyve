@@ -107,6 +107,28 @@ get_installed_version () {
     echo $version
 }
 
+check_vm_exists () {
+    if [ ! -e "$HOME/.dhyve" ]; then
+        echo "[dhyve] no vm has been initialized, try running 'dhyve init'"
+        exit 1
+    fi
+}
+
+check_vm_running () {
+    if [ ! -e "$HOME/.dhyve/vm.pid" ]; then
+        echo "[dhyve] not running"
+        exit 1
+    fi
+
+    local pid=$(cat "$HOME/.dhyve/vm.pid")
+    ps $pid >/dev/null 2>&1
+    if [ $? != 0 ]; then
+        rm "$HOME/.dhyve/vm.pid"
+        echo "[dhyve] not running"
+        exit 1
+    fi
+}
+
 update_dhyve () {
     if [ ! -w "$(which dhyve)" ]; then
         echo "[dhyve] this command requires root permissions"
@@ -148,13 +170,10 @@ download_boot2docker () {
 }
 
 upgrade_boot2docker () {
-    if [ ! -d "$HOME/.dhyve" ]; then
-        echo "[dhyve] no virtual machine exists, create one with dhyve init"
-        return 1
-    fi
-
-    if [ -e "$HOME/.dhyve/vm.pid" ]; then
-        echo "[dhyve] vm is currently running, please stop it first"
+    check_vm_exists
+    local status; status=$(check_vm_running)
+    if [ $? == 0 ]; then
+        echo "[dhyve] is currently running, please stop it first"
         return 1
     fi
 
@@ -277,15 +296,17 @@ vm_init () {
 }
 
 vm_up () {
+    check_vm_exists
+    local status; status=$(check_vm_running)
+    if [ $? == 0 ]; then
+        echo "[dhyve] is already running"
+        return 1
+    fi
+
     if [ "$USER" != "root" ]; then
         echo "[dhyve] this command requires root permissions"
         sudo "$0" "up"
         exit
-    fi
-
-    if [ -e "$HOME/.dhyve/vm.pid" ]; then
-        echo "[dhyve] is already running"
-        return 1
     fi
 
     echo -n "[dhyve] starting.."
@@ -320,11 +341,8 @@ vm_up () {
 }
 
 vm_down () {
-    if [ ! -e "$HOME/.dhyve/vm.pid" ]; then
-        echo "[dhyve] not yet started"
-        return 1
-    fi
-
+    check_vm_exists
+    check_vm_running
     if [ "$USER" != "root" ]; then
         echo "[dhyve] this command requires root permissions"
         sudo "$0" "down"
@@ -343,13 +361,9 @@ vm_down () {
 }
 
 vm_status () {
-    if [ ! -e "$HOME/.dhyve" ]; then
-        echo "[dhyve] no vm has been initialized, try running 'dhyve init'"
-        exit 1
-    fi
-
-    local status
-    if [ -e "$HOME/.dhyve/vm.pid" ]; then
+    check_vm_exists
+    local status; status=$(check_vm_running)
+    if [ $? == 0 ]; then
         status="running"
     else
         status="stopped"
@@ -376,21 +390,15 @@ vm_status () {
 }
 
 vm_ssh () {
-    if [ ! -e "$HOME/.dhyve/vm.pid" ]; then
-        echo "[dhyve] not yet started"
-        return 1
-    fi
-
+    check_vm_exists
+    check_vm_running
     echo "[dhyve] starting ssh session.."
     ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm "$@"
 }
 
 vm_scp () {
-    if [ ! -e "$HOME/.dhyve/vm.pid" ]; then
-        echo "[dhyve] not yet started"
-        return 1
-    fi
-
+    check_vm_exists
+    check_vm_running
     scp -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@"
 }
 
@@ -398,7 +406,7 @@ vm_env () {
     local name=$(cat "$HOME/.dhyve/vm.name")
     local ip=$(get_ip $name)
     if [ -z "$ip" ]; then
-        echo "[dhyve] not yet started"
+        echo "[dhyve] has not been started yet, please run 'dhyve up'" >&2
         return 1
     fi
 
