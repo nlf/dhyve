@@ -1,4 +1,4 @@
 PREFIX ?= /usr/local
 
-install: all
+install:
 	@install -CSv dhyve $(PREFIX)/bin/
