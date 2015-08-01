@@ -333,17 +333,9 @@ vm_up () {
 }
 
 vm_down () {
-    check_vm_exists
-    check_vm_running
-    if [ "$USER" != "root" ]; then
-        echo "[dhyve] this command requires root permissions"
-        sudo "$0" "down"
-        exit
-    fi
-
     echo -n "[dhyve] stopping.."
     local pid=$(cat "$HOME/.dhyve/vm.pid")
-    kill $pid
+    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm sudo /sbin/halt >/dev/null 2>&1
     while ps $pid >/dev/null; do
         echo -n "."
         sleep 0.5
