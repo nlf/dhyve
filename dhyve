@@ -101,10 +101,14 @@ get_exports() {
 
 get_release() {
     local repo=$1
-    local args=''
-    if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
+    local token=$(config_get github_token)
+    local args
+    if [ $? -eq 0 ]; then
+        args="-H \"Authorization: token $token\""
+    elif [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
         args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
     fi
+
     local version=$(curl -s "$args" https://api.github.com/repos/$repo/releases/latest | awk -F'"' '/tag_name/ { print $4 }')
     if [ -z "$version" ]; then
         echo "[dhyve] failed to retrieve latest version information"
