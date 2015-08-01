@@ -12,7 +12,7 @@ print_help() {
     echo "    status:  print the vm's status"
     echo "    env:     output environment variables to use docker with the dhyve vm"
     echo "             to use, eval \"\$(dhyve env)\""
-    echo "    upgrade: upgrade your vm to the newest dhyveos image"
+    echo "    upgrade: upgrade your vm to the newest image"
     echo ""
     echo "  available options for init command"
     echo "    -n:      name of the vm to create [dhyve]"
@@ -255,7 +255,7 @@ vm_init() {
         return 1
     fi
 
-    echo -n "[dhyve] fetching dhyve vm $version.."
+    echo -n "[dhyve] downloading vm version $version.."
     download_dhyveos "$version"
     echo "done"
 
