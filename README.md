@@ -1,5 +1,7 @@
 A little helper script to make running boot2docker inside of xhyve simple
 
+[![Join the chat at https://gitter.im/nlf/dhyve](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nlf/dhyve?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Usage:
 
 Pull down this repo
