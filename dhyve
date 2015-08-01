@@ -76,7 +76,7 @@ config_del() {
 }
 
 # this function copied from https://github.com/ailispaw/boot2docker-xhyve and modified lightly
-get_exports() {
+set_exports() {
     local vmnet="/Library/Preferences/SystemConfiguration/com.apple.vmnet"
     local addr=$(defaults read ${vmnet} Shared_Net_Address)
     local mask=$(defaults read ${vmnet} Shared_Net_Mask)
@@ -96,7 +96,14 @@ get_exports() {
     local num=$(( $(ip2num ${addr}) & $(ip2num ${mask}) ))
     local net=$(num2ip ${num})
 
-    echo "/Users -network ${net} -mask ${mask} -alldirs -mapall=$(id -u $SUDO_USER):$(id -g $SUDO_USER)"
+    local exports="/Users -network ${net} -mask ${mask} -alldirs -mapall=$(id -u $SUDO_USER):$(id -g $SUDO_USER)"
+
+    touch /etc/exports
+    grep -q "$exports" /etc/exports
+    if [ $? -ne 0 ]; then
+        echo "$exports" >> /etc/exports
+        nfsd restart >/dev/null 2>&1
+    fi
 }
 
 get_release() {
@@ -270,13 +277,7 @@ vm_init() {
     echo "done"
 
     echo -n "[dhyve] creating nfs export.."
-    local exports=$(get_exports)
-    touch /etc/exports
-    grep -q "$exports" /etc/exports
-    if [ $? -ne 0 ]; then
-        echo "$exports" >> /etc/exports
-        nfsd restart >/dev/null 2>&1
-    fi
+    set_exports
     echo "done"
 
     echo -n "[dhyve] generating a disk image.."
@@ -334,13 +335,7 @@ vm_up() {
     enforce_root '[ "$USER" == "root" ]' up $@
 
     echo -n "[dhyve] starting.."
-    local exports=$(get_exports)
-    touch /etc/exports
-    grep -q "$exports" /etc/exports
-    if [ $? -ne 0 ]; then
-        echo "$exports" >> /etc/exports
-        nfsd restart >/dev/null 2>&1
-    fi
+    set_exports
     local args=$(config_get args)
     local kargs=$(config_get kargs)
     nohup xhyve $args,"$kargs" </dev/null >/dev/null 2>&1 &
