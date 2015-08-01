@@ -22,7 +22,7 @@ print_help() {
 }
 
 get_ip() {
-    local trimmed=$(echo $1 | sed 's/0\([0-9a-fA-F]:\)/\1/g')
+    local name=$1
     awk '
     {
       if ($1 ~ /^name/) {
@@ -37,7 +37,7 @@ get_ip() {
       }
     }
     END {
-        print ip_addresses["'$trimmed'"]
+        print ip_addresses["'$name'"]
     }
     ' /var/db/dhcpd_leases
 }
