@@ -1,4 +1,5 @@
 #!/bin/bash
+version="v2.0.0"
 
 print_help() {
     echo "Usage: dhyve <command> [options]"
@@ -359,7 +360,7 @@ vm_status() {
     echo "        args:   $(config_get args)"
     echo "        kargs:  $(config_get kargs)"
     echo "        versions:"
-    echo "            client: $(get_installed_version)"
+    echo "            dhyve:  $version"
     echo "            vm:     $(config_get version)"
 }
 
