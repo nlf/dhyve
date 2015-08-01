@@ -124,16 +124,6 @@ get_release() {
     echo $version
 }
 
-get_installed_version() {
-    local dhyve=$(which dhyve)
-    local version=$(cat "$dhyve" | awk -F' ' '/dhyve_version/ { print $2; exit }')
-    if [ -z "$version" ]; then
-        version="unknown"
-    fi
-
-    echo $version
-}
-
 enforce_root() {
     local cond=$1; shift
 
