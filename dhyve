@@ -383,11 +383,6 @@ vm_down () {
 
     echo -n "[dhyve] stopping.."
     local pid=$(config_get pid)
-    if [ -z "$pid" ]; then
-        echo "[dhyve] vm is not running"
-        return 1
-    fi
-
     kill $pid
     while ps $pid >/dev/null; do
         echo -n "."
