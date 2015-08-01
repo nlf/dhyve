@@ -147,7 +147,7 @@ check_vm_exists () {
 }
 
 check_vm_running () {
-    local pid=$(config_get pid)
+    local pid; pid=$(config_get pid)
     if [ $? != 0 ]; then
         echo "[dhyve] not running"
         exit 1
