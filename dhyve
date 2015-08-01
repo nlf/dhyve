@@ -366,7 +366,7 @@ vm_down() {
 }
 
 vm_status() {
-    check_vm -1 "something's wrong"
+    check_vm -1
     if [ $? == 2 ]; then
         status="running"
     else
