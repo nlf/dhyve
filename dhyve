@@ -14,7 +14,7 @@ print_help () {
     echo "    env:     output environment variables to use docker with the dhyve vm"
     echo "             to use, eval \"\$(dhyve env)\""
     echo "    update:  update the dhyve script"
-    echo "    upgrade: upgrade your vm to the newest boot2docker image"
+    echo "    upgrade: upgrade your vm to the newest dhyveos image"
     echo ""
     echo "  available options for init command"
     echo "    -m:      amount of memory to allocate to the vm [2G]"
@@ -68,27 +68,26 @@ get_exports () {
     echo "/Users -network ${net} -mask ${mask} -alldirs -mapall=$(id -u $SUDO_USER):$(id -g $SUDO_USER)"
 }
 
-get_bootsync () {
-    local tempfile=$(mktemp -t dhyve)
-    echo '#!/bin/sh' > "$tempfile"
-    echo 'mkdir -p /Users' >> "$tempfile"
-    echo 'umount /Users' >> "$tempfile"
-    echo '/usr/local/etc/init.d/nfs-client start' >> "$tempfile"
-    echo 'GW_IP=$(ip route get 8.8.8.8 | awk '"'"'NR==1 {print $3}'"'"')' >> "$tempfile"
-    echo 'if [ -n "${GW_IP}" ]; then' >> "$tempfile"
-    echo '    mount ${GW_IP}:/Users /Users -o rw,async,noatime,rsize=32768,wsize=32768,proto=tcp' >> "$tempfile"
-    echo 'fi' >> "$tempfile"
-
-    chmod +x "$tempfile"
-    echo "$tempfile"
-}
-
 get_latest_version () {
     local args=''
     if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
         args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
     fi
     local version=$(curl -s "$args" https://api.github.com/repos/nlf/dhyve/releases/latest | awk -F'"' '/tag_name/ { print $4 }')
+    if [ -z "$version" ]; then
+        echo "[dhyve] failed to retrieve latest version information"
+        exit 1
+    fi
+
+    echo $version
+}
+
+get_latest_os_version () {
+    local args=''
+    if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
+        args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
+    fi
+    local version=$(curl -s "$args" https://api.github.com/repos/nlf/dhyve-os/releases/latest | awk -F'"' '/tag_name/ { print $4 }')
     if [ -z "$version" ]; then
         echo "[dhyve] failed to retrieve latest version information"
         exit 1
@@ -161,15 +160,15 @@ update_dhyve () {
     exit 0
 }
 
-download_boot2docker () {
+download_dhyveos () {
     local version=$1
 
-    curl -Lso "$HOME/.dhyve/vmlinuz64" "https://github.com/nlf/dhyve/releases/download/$version/vmlinuz64"
-    curl -Lso "$HOME/.dhyve/initrd.img" "https://github.com/nlf/dhyve/releases/download/$version/initrd.img"
+    curl -Lso "$HOME/.dhyve/bzImage" "https://github.com/nlf/dhyve-os/releases/download/$version/bzImage"
+    curl -Lso "$HOME/.dhyve/rootfs.cpio.xz" "https://github.com/nlf/dhyve-os/releases/download/$version/rootfs.cpio.xz"
     echo "$version" > "$HOME/.dhyve/vm.version"
 }
 
-upgrade_boot2docker () {
+upgrade_dhyveos () {
     check_vm_exists
     local status; status=$(check_vm_running)
     if [ $? == 0 ]; then
@@ -186,14 +185,14 @@ upgrade_boot2docker () {
     if [ -e "$HOME/.dhyve/vm.version" ]; then
         if [ "$(cat $HOME/.dhyve/vm.version)" != "$version" ]; then
             echo -n "[dhyve] upgrading vm to version $version.."
-            download_boot2docker "$version"
+            download_dhyveos "$version"
             echo "done"
         else
             echo "[dhyve] latest vm version ($version) already installed"
         fi
     else
         echo -n "[dhyve] upgrading vm to version $version.."
-        download_boot2docker "$version"
+        download_dhyveos "$version"
         echo "done"
     fi
 }
@@ -251,8 +250,8 @@ vm_init () {
     done
 
     echo -n "[dhyve] saving options.."
-    local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/vmlinuz64,$HOME/.dhyve/initrd.img"
-    local cmdline="loglevel=3 user=docker console=ttyS0 noembed nomodeset norestore waitusb=10:LABEL=boot2docker-data base host=$name"
+    local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 31,lpc -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/bzImage,$HOME/.dhyve/rootfs.cpio.xz"
+    local cmdline="console=ttyS0 hostname=$name"
     echo "$args" > "$HOME/.dhyve/vm.args"
     echo "$cmdline" > "$HOME/.dhyve/vm.cmdline"
     echo "done"
@@ -273,22 +272,22 @@ vm_init () {
 
     echo -n "[dhyve] generating a disk image.."
     local tempdir=$(mktemp -d -t dhyve)
-    echo "boot2docker, please format-me" > "$tempdir/boot2docker, please format-me"
+    echo "dhyve, please format-me" > "$tempdir/dhyve, please format-me"
     mkdir -p "$tempdir/.ssh"
     cp "$HOME/.dhyve/dhyve_key.pub" "$tempdir/.ssh/authorized_keys"
-    tar cf "$HOME/.dhyve/disk.img" --directory="$tempdir" "boot2docker, please format-me" ".ssh/authorized_keys"
+    tar cf "$HOME/.dhyve/disk.img" --directory="$tempdir" "dhyve, please format-me" ".ssh/authorized_keys"
     echo -n "."
     dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/disk.img" 2>/dev/null
     echo "done"
 
-    local version; version=$(get_latest_version)
+    local version; version=$(get_latest_os_version)
     if [ $? != 0 ]; then
         echo "$version"
         return 1
     fi
 
     echo -n "[dhyve] fetching dhyve vm $version.."
-    download_boot2docker "$version"
+    download_dhyveos "$version"
     echo "done"
 
     chown -R $SUDO_USER "$HOME/.dhyve"
@@ -321,7 +320,7 @@ vm_up () {
     local cmdline=$(cat "$HOME/.dhyve/vm.cmdline")
     nohup xhyve $args,"$cmdline" </dev/null >/dev/null 2>&1 &
     echo $! > "$HOME/.dhyve/vm.pid"
-    until scp -r -i "$HOME/.dhyve/dhyve_key" -o ConnectTimeout=4 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$(get_ip $(cat "$HOME/.dhyve/vm.name")):.docker "$HOME/.dhyve/certs" >/dev/null 2>&1; do
+    until ping -c 1 $(get_ip $(cat "$HOME/.dhyve/vm.name")) >/dev/null 2>&1; do
         echo -n "."
         sleep 0.5
     done
@@ -329,13 +328,6 @@ vm_up () {
     local ip=$(get_ip $name)
     sed -i '' "s/.* dhyve.vm$/$ip dhyve.vm/g" /etc/hosts
     grep -q "$ip dhyve.vm" /etc/hosts || echo "$ip dhyve.vm" >> /etc/hosts
-    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm ls /var/lib/boot2docker/bootsync.sh >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        local bootsync=$(get_bootsync)
-        scp -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$bootsync" docker@dhyve.vm:bootsync.sh >/dev/null 2>&1
-        ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm sudo mv bootsync.sh /var/lib/boot2docker/bootsync.sh >/dev/null 2>&1
-        ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@dhyve.vm sudo /var/lib/boot2docker/bootsync.sh >/dev/null 2>&1
-    fi
     echo "done"
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
@@ -410,9 +402,9 @@ vm_env () {
         return 1
     fi
 
-    echo "export DOCKER_HOST=$ip:2376"
-    echo "export DOCKER_CERT_PATH=$HOME/.dhyve/certs"
-    echo "export DOCKER_TLS_VERIFY=yes"
+    echo "unset DOCKER_TLS_VERIFY"
+    echo "unset DOCKER_CERT_PATH"
+    echo "export DOCKER_HOST=$ip:2375"
 }
 
 cmd=$1
@@ -443,7 +435,7 @@ case "$cmd" in
         update_dhyve
         ;;
     upgrade)
-        upgrade_boot2docker
+        upgrade_dhyveos
         ;;
     *)
         print_help
