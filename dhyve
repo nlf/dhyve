@@ -99,26 +99,13 @@ get_exports() {
     echo "/Users -network ${net} -mask ${mask} -alldirs -mapall=$(id -u $SUDO_USER):$(id -g $SUDO_USER)"
 }
 
-get_latest_version() {
+get_release() {
+    local repo=$1
     local args=''
     if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
         args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
     fi
-    local version=$(curl -s "$args" https://api.github.com/repos/nlf/dhyve/releases/latest | awk -F'"' '/tag_name/ { print $4 }')
-    if [ -z "$version" ]; then
-        echo "[dhyve] failed to retrieve latest version information"
-        exit 1
-    fi
-
-    echo $version
-}
-
-get_latest_os_version() {
-    local args=''
-    if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
-        args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
-    fi
-    local version=$(curl -s "$args" https://api.github.com/repos/nlf/dhyve-os/releases/latest | awk -F'"' '/tag_name/ { print $4 }')
+    local version=$(curl -s "$args" https://api.github.com/repos/$repo/releases/latest | awk -F'"' '/tag_name/ { print $4 }')
     if [ -z "$version" ]; then
         echo "[dhyve] failed to retrieve latest version information"
         exit 1
@@ -176,7 +163,7 @@ update_dhyve() {
         exit
     fi
 
-    local version; version=$(get_latest_version)
+    local version; version=$(get_release nlf/dhyve)
     if [ $? != 0 ]; then
         echo "$version"
         exit 1
@@ -207,7 +194,7 @@ download_dhyveos() {
 
 upgrade_dhyveos() {
     check_vm 1 "is currently running, please stop it first"
-    local version; version=$(get_latest_os_version)
+    local version; version=$(get_release nlf/dhyve-os)
     if [ $? != 0 ]; then
         echo "$version"
         return 1
@@ -299,7 +286,7 @@ vm_init() {
     dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/disk.img" 2>/dev/null
     echo "done"
 
-    local version; version=$(get_latest_os_version)
+    local version; version=$(get_release nlf/dhyve-os)
     if [ $? != 0 ]; then
         echo "$version"
         return 1
