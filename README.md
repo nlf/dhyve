@@ -2,10 +2,10 @@ A little helper script to make running boot2docker inside of xhyve simple
 
 Usage:
 
-Pull down this repo, and update submodules
+Pull down this repo
 
 ```bash
-git clone --recursive git@github.com:nlf/dhyve.git
+git clone git@github.com:nlf/dhyve.git
 cd dhyve
 ```
 
@@ -15,7 +15,7 @@ Install dhyve
 make install
 ```
 
-This will install `dhyve` itself and [xhyve](https://github.com/mist64/xhyve).
+This will install the `dhyve` script
 
 Note: you may have to use `sudo` when running `make install` if `/usr/local/bin` isn't writable by your user. Also you'll want to make sure `/usr/local/bin` is in your `PATH` environment variable.
 
