@@ -200,11 +200,12 @@ vm_init() {
     check_vm 0 "it looks like a vm already exists, use 'dhyve destroy' to remove it and try again"
     mkdir -p $HOME/.dhyve
 
+    local name=dhyve
     local mem=2G
     local disk=10
     local cpu=1
 
-    while getopts "m:d:c:" opt; do
+    while getopts "m:d:c:n:" opt; do
         case $opt in
             m)
                 mem=$(echo $OPTARG | tr '[:lower:]' '[:upper:]')
@@ -215,6 +216,9 @@ vm_init() {
             c)
                 cpu=$OPTARG
                 ;;
+            n)
+                name=$OPTARG
+                ;;
             :)
                 echo "[dhyve] -$OPTARG requires an argument."
                 exit 1
@@ -223,7 +227,6 @@ vm_init() {
 
     echo -n "[dhyve] saving options.."
     local uuid="2996454B-06DE-43B0-9FC6-9E9F38D1DCAE" # $(uuidgen)
-    local name="dhyve"
     config set name "$name"
     local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 31,lpc -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/bzImage,$HOME/.dhyve/rootfs.cpio.xz"
     local kargs="console=ttyS0 hostname=$name"
@@ -232,14 +235,14 @@ vm_init() {
     echo "done"
 
     echo -n "[dhyve] generating a new ssh key.."
-    ssh-keygen -t rsa -b 2048 -P "" -f "$HOME/.dhyve/dhyve_key" >/dev/null 2>&1
+    ssh-keygen -t rsa -b 2048 -P "" -f "$HOME/.dhyve/key" >/dev/null 2>&1
     echo "done"
 
     echo -n "[dhyve] generating a disk image.."
     local tempdir=$(mktemp -d -t dhyve)
     echo "dhyve, please format-me" > "$tempdir/dhyve, please format-me"
     mkdir -p "$tempdir/.ssh"
-    cp "$HOME/.dhyve/dhyve_key.pub" "$tempdir/.ssh/authorized_keys"
+    cp "$HOME/.dhyve/key.pub" "$tempdir/.ssh/authorized_keys"
     tar cf "$HOME/.dhyve/disk.img" --directory="$tempdir" "dhyve, please format-me" ".ssh/authorized_keys"
     echo -n "."
     dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/disk.img" 2>/dev/null
@@ -278,7 +281,7 @@ register_vm() {
     if [ $? != 0 ]; then
         echo "Host $name.vm" >> "$HOME/.ssh/config"
         echo "  User docker" >> "$HOME/.ssh/config"
-        echo "  IdentityFile $HOME/.dhyve/dhyve_key" >> "$HOME/.ssh/config"
+        echo "  IdentityFile $HOME/.dhyve/key" >> "$HOME/.ssh/config"
         echo "  StrictHostKeyChecking no" >> "$HOME/.ssh/config"
         echo "  UserKnownHostsFile /dev/null" >> "$HOME/.ssh/config"
     fi
@@ -332,7 +335,7 @@ vm_status() {
     echo "        name:   $name"
     if [ "$status" == "running" ]; then
         echo "        pid:    $(config get pid)"
-        echo "        ip:     $(get_ip "$name") [dhyve.vm]"
+        echo "        ip:     $(get_ip "$name") [$name.vm]"
     fi
     echo "        disk:   $(du -h "$HOME/.dhyve/disk.img")"
     echo "        args:   $(config get args)"
