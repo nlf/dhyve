@@ -198,7 +198,6 @@ vm_init() {
     fi
 
     check_vm 0 "it looks like a vm already exists, use 'dhyve destroy' to remove it and try again"
-    enforce_root '[ "$USER" == "root" ]' init "$@"
     mkdir -p $HOME/.dhyve
 
     local mem=2G
@@ -236,10 +235,6 @@ vm_init() {
     ssh-keygen -t rsa -b 2048 -P "" -f "$HOME/.dhyve/dhyve_key" >/dev/null 2>&1
     echo "done"
 
-    echo -n "[dhyve] creating nfs export.."
-    set_exports
-    echo "done"
-
     echo -n "[dhyve] generating a disk image.."
     local tempdir=$(mktemp -d -t dhyve)
     echo "dhyve, please format-me" > "$tempdir/dhyve, please format-me"
@@ -260,7 +255,6 @@ vm_init() {
     download_dhyveos "$version"
     echo "done"
 
-    chown -R $SUDO_USER "$HOME/.dhyve"
     echo "[dhyve] finished creating vm, to start it run 'dhyve up'"
 }
 
