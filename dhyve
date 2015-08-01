@@ -1,7 +1,7 @@
 #!/bin/bash
 #dhyve_version: v1.1.0
 
-print_help () {
+print_help() {
     echo "Usage: dhyve <command> [options]"
     echo ""
     echo "  available commands:"
@@ -22,7 +22,7 @@ print_help () {
     return 1
 }
 
-get_ip () {
+get_ip() {
     local trimmed=$(echo $1 | sed 's/0\([0-9a-fA-F]:\)/\1/g')
     awk '
     {
@@ -76,7 +76,7 @@ config_del() {
 }
 
 # this function copied from https://github.com/ailispaw/boot2docker-xhyve and modified lightly
-get_exports () {
+get_exports() {
     local vmnet="/Library/Preferences/SystemConfiguration/com.apple.vmnet"
     local addr=$(defaults read ${vmnet} Shared_Net_Address)
     local mask=$(defaults read ${vmnet} Shared_Net_Mask)
@@ -99,7 +99,7 @@ get_exports () {
     echo "/Users -network ${net} -mask ${mask} -alldirs -mapall=$(id -u $SUDO_USER):$(id -g $SUDO_USER)"
 }
 
-get_latest_version () {
+get_latest_version() {
     local args=''
     if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
         args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
@@ -113,7 +113,7 @@ get_latest_version () {
     echo $version
 }
 
-get_latest_os_version () {
+get_latest_os_version() {
     local args=''
     if [ -n "$HOMEBREW_GITHUB_API_TOKEN" ]; then
         args="-H \"Authorization: token $HOMEBREW_GITHUB_API_TOKEN\""
@@ -127,7 +127,7 @@ get_latest_os_version () {
     echo $version
 }
 
-get_installed_version () {
+get_installed_version() {
     local dhyve=$(which dhyve)
     local version=$(cat "$dhyve" | awk -F' ' '/dhyve_version/ { print $2; exit }')
     if [ -z "$version" ]; then
@@ -137,29 +137,38 @@ get_installed_version () {
     echo $version
 }
 
-check_vm_exists () {
-    if [ ! -e "$HOME/.dhyve" ]; then
-        echo "[dhyve] no vm has been initialized, try running 'dhyve init'"
-        exit 1
+check_vm() {
+    local expected=$1 # 0 = vm doesn't exist, 1 = vm is stopped, 2 = vm is running
+    local message=$2
+    local status=0
+
+    if [ -e "$HOME/.dhyve" -a -e "$HOME/.dhyve/vm.cfg" ]; then
+        local pid; pid=$(config_get pid)
+        if [ $? != 0 ]; then
+            status=1
+        else
+            ps $pid >/dev/null 2>&1
+            if [ $? != 0 ]; then
+                config_del pid
+                status=1
+            else
+                status=2
+            fi
+        fi
     fi
+
+    [ "$expected" == "$status" ] && return $status
+
+    if [ "$expected" -ne 0 -a "$status" -eq 0 ]; then
+        echo "[dhyve] vm is missing, try running 'dhyve init' first"
+    else
+        [ "$expected" -eq -1 ] && return $status
+        echo "[dhyve] $message"
+    fi
+    exit 1
 }
 
-check_vm_running () {
-    local pid; pid=$(config_get pid)
-    if [ $? != 0 ]; then
-        echo "[dhyve] not running"
-        exit 1
-    fi
-
-    ps $pid >/dev/null 2>&1
-    if [ $? != 0 ]; then
-        config_del pid
-        echo "[dhyve] not running"
-        exit 1
-    fi
-}
-
-update_dhyve () {
+update_dhyve() {
     if [ ! -w "$(which dhyve)" ]; then
         echo "[dhyve] this command requires root permissions"
         sudo "$0" "update"
@@ -187,7 +196,7 @@ update_dhyve () {
     exit 0
 }
 
-download_dhyveos () {
+download_dhyveos() {
     local version=$1
 
     curl -Lso "$HOME/.dhyve/bzImage" "https://github.com/nlf/dhyve-os/releases/download/$version/bzImage"
@@ -195,14 +204,8 @@ download_dhyveos () {
     config_set version "$version"
 }
 
-upgrade_dhyveos () {
-    check_vm_exists
-    local status; status=$(check_vm_running)
-    if [ $? == 0 ]; then
-        echo "[dhyve] is currently running, please stop it first"
-        return 1
-    fi
-
+upgrade_dhyveos() {
+    check_vm 1 "is currently running, please stop it first"
     local version; version=$(get_latest_os_version)
     if [ $? != 0 ]; then
         echo "$version"
@@ -218,7 +221,7 @@ upgrade_dhyveos () {
     fi
 }
 
-vm_init () {
+vm_init() {
     if [ -z "$(which xhyve)" ]; then
         if [ -z "$(which brew)" ]; then
             echo "[dhyve] xhyve is required, but homebrew is missing. please either install homebrew http://brew.sh or install xhyve manually"
@@ -230,15 +233,12 @@ vm_init () {
         brew install xhyve
     fi
 
+    check_vm 0 "it looks like a vm already exists, use 'dhyve destroy' to remove it and try again"
+
     if [ "$USER" != "root" ]; then
         echo "[dhyve] this command requires root permissions"
         sudo "$0" "init" "$@"
         exit
-    fi
-
-    if [ -d "$HOME/.dhyve" ]; then
-        echo "[dhyve] it looks like you've already created a dhyve machine, run 'dhyve destroy' to remove it"
-        return 1
     fi
 
     mkdir -p $HOME/.dhyve
@@ -313,13 +313,7 @@ vm_init () {
 }
 
 vm_destroy() {
-    check_vm_exists
-    local status; status=$(check_vm_running)
-    if [ $? == 0 ]; then
-        echo "[dhyve] is running, you should stop it before attempting to destroy it"
-        return 1
-    fi
-
+    check_vm 1 "is running, you should stop it before attempting to destroy it"
     if [ ! -w "$HOME/.dhyve" ]; then
         echo "[dhyve] this command requires root"
         sudo "$0" destroy
@@ -348,14 +342,8 @@ register_vm() {
     fi
 }
 
-vm_up () {
-    check_vm_exists
-    local status; status=$(check_vm_running)
-    if [ $? == 0 ]; then
-        echo "[dhyve] is already running"
-        return 1
-    fi
-
+vm_up() {
+    check_vm 1 "is already running"
     if [ "$USER" != "root" ]; then
         echo "[dhyve] this command requires root permissions"
         sudo "$0" "up"
@@ -384,9 +372,8 @@ vm_up () {
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
 
-vm_down () {
-    check_vm_exists
-    check_vm_running
+vm_down() {
+    check_vm 2 "is not running"
     if [ "$USER" != "root" ]; then
         echo "[dhyve] this command requires root permissions"
         sudo "$0" "down"
@@ -404,10 +391,9 @@ vm_down () {
     echo "done"
 }
 
-vm_status () {
-    check_vm_exists
-    local status; status=$(check_vm_running)
-    if [ $? == 0 ]; then
+vm_status() {
+    check_vm -1 "something's wrong"
+    if [ $? == 2 ]; then
         status="running"
     else
         status="stopped"
@@ -428,7 +414,7 @@ vm_status () {
     echo "            vm:     $(config_get version)"
 }
 
-vm_env () {
+vm_env() {
     local name=$(config_get name)
     local ip=$(get_ip $name)
     if [ -z "$ip" ]; then
