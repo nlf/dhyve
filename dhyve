@@ -15,6 +15,7 @@ print_help() {
     echo "    upgrade: upgrade your vm to the newest dhyveos image"
     echo ""
     echo "  available options for init command"
+    echo "    -n:      name of the vm to create [dhyve]"
     echo "    -m:      amount of memory to allocate to the vm [2G]"
     echo "    -d:      size of disk to create, in gigabytes [10]"
     echo "    -c:      number of cpus to assign [1]"
