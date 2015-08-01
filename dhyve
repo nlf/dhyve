@@ -198,6 +198,17 @@ upgrade_dhyveos () {
 }
 
 vm_init () {
+    if [ -z "$(which xhyve)" ]; then
+        if [ -z "$(which brew)" ]; then
+            echo "[dhyve] xhyve is required, but homebrew is missing. please either install homebrew http://brew.sh or install xhyve manually"
+            exit 1
+        fi
+
+        echo "[dhyve] installing xhyve with homebrew.."
+        brew update
+        brew install xhyve
+    fi
+
     if [ "$USER" != "root" ]; then
         echo "[dhyve] this command requires root permissions"
         sudo "$0" "init" "$@"

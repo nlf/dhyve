@@ -1,3 +1,0 @@
-[submodule "xhyve"]
-	path = xhyve
-	url = git://github.com/mist64/xhyve.git
