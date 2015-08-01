@@ -1,5 +1,5 @@
 #!/bin/bash
-#dhyve_version: v1.0.0
+#dhyve_version: v1.1.0
 
 print_help () {
     echo "Usage: dhyve <command> [options]"
