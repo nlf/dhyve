@@ -128,6 +128,16 @@ get_installed_version() {
     echo $version
 }
 
+enforce_root() {
+    local cond=$1; shift
+
+    if ! eval "$cond"; then
+        echo "[dhyve] this command requires root, restarting with sudo.."
+        sudo "$0" "$@"
+        exit $?
+    fi
+}
+
 check_vm() {
     local expected=$1 # 0 = vm doesn't exist, 1 = vm is stopped, 2 = vm is running, -1 = don't care, just return the status
     local message=$2
@@ -161,12 +171,7 @@ check_vm() {
 }
 
 update_dhyve() {
-    if [ ! -w "$(which dhyve)" ]; then
-        echo "[dhyve] this command requires root permissions"
-        sudo "$0" "update"
-        exit
-    fi
-
+    enforce_root '[ -w $(which dhyve) ]' update "$@"
     local version; version=$(get_release nlf/dhyve)
     if [ $? != 0 ]; then
         echo "$version"
@@ -226,13 +231,7 @@ vm_init() {
     fi
 
     check_vm 0 "it looks like a vm already exists, use 'dhyve destroy' to remove it and try again"
-
-    if [ "$USER" != "root" ]; then
-        echo "[dhyve] this command requires root permissions"
-        sudo "$0" "init" "$@"
-        exit
-    fi
-
+    enforce_root '[ "$USER" == "root" ]' init "$@"
     mkdir -p $HOME/.dhyve
 
     local mem=2G
@@ -306,11 +305,7 @@ vm_init() {
 
 vm_destroy() {
     check_vm 1 "is running, you should stop it before attempting to destroy it"
-    if [ ! -w "$HOME/.dhyve" ]; then
-        echo "[dhyve] this command requires root"
-        sudo "$0" destroy
-        exit
-    fi
+    enforce_root '[ -w "$HOME/.dhyve" ]' destroy $@
 
     echo -n "[dhyve] destroying vm.."
     rm -rf "$HOME/.dhyve"
@@ -336,11 +331,7 @@ register_vm() {
 
 vm_up() {
     check_vm 1 "is already running"
-    if [ "$USER" != "root" ]; then
-        echo "[dhyve] this command requires root permissions"
-        sudo "$0" "up"
-        exit
-    fi
+    enforce_root '[ "$USER" == "root" ]' up $@
 
     echo -n "[dhyve] starting.."
     local exports=$(get_exports)
@@ -366,11 +357,7 @@ vm_up() {
 
 vm_down() {
     check_vm 2 "is not running"
-    if [ "$USER" != "root" ]; then
-        echo "[dhyve] this command requires root permissions"
-        sudo "$0" "down"
-        exit
-    fi
+    enforce_root '[ "$USER" == "root" ]' down "$@"
 
     echo -n "[dhyve] stopping.."
     local pid=$(config_get pid)
