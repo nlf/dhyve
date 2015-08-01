@@ -1,5 +1,4 @@
 #!/bin/bash
-#dhyve_version: v1.1.0
 
 print_help() {
     echo "Usage: dhyve <command> [options]"
@@ -12,7 +11,6 @@ print_help() {
     echo "    status:  print the vm's status"
     echo "    env:     output environment variables to use docker with the dhyve vm"
     echo "             to use, eval \"\$(dhyve env)\""
-    echo "    update:  update the dhyve script"
     echo "    upgrade: upgrade your vm to the newest dhyveos image"
     echo ""
     echo "  available options for init command"
@@ -175,29 +173,6 @@ check_vm() {
         echo "[dhyve] $message"
     fi
     exit 1
-}
-
-update_dhyve() {
-    enforce_root '[ -w $(which dhyve) ]' update "$@"
-    local version; version=$(get_release nlf/dhyve)
-    if [ $? != 0 ]; then
-        echo "$version"
-        exit 1
-    fi
-
-    local tempdir
-    if [ "$version" != "$(get_installed_version)" ]; then
-        echo -n "[dhyve] upgrading to version $version.."
-        tempdir=$(mktemp -d -t dhyve)
-        curl -Lso "$tempdir/dhyve.tar.gz" "https://github.com/nlf/dhyve/archive/$version.tar.gz"
-        tar xf "$tempdir/dhyve.tar.gz" -C "$tempdir" --strip-components 1
-        install -CS "$tempdir/dhyve" "$(which dhyve)"
-        echo "done"
-    else
-        echo "[dhyve] latest version ($version) already installed"
-    fi
-
-    exit 0
 }
 
 download_dhyveos() {
@@ -421,9 +396,6 @@ case "$cmd" in
         ;;
     env)
         vm_env
-        ;;
-    update)
-        update_dhyve
         ;;
     upgrade)
         upgrade_dhyveos
