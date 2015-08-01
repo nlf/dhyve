@@ -37,6 +37,8 @@ See `dhyve help` for more usage information.
 CREDITS
 -------
 
+[![Join the chat at https://gitter.im/nlf/dhyve](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nlf/dhyve?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 This project draws code and inspiration from prior works. Thank you!
 
 - [ailispaw/boot2docker-xhyve](https://github.com/ailispaw/boot2docker-xhyve)
