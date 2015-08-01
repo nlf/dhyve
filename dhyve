@@ -138,7 +138,7 @@ get_installed_version() {
 }
 
 check_vm() {
-    local expected=$1 # 0 = vm doesn't exist, 1 = vm is stopped, 2 = vm is running
+    local expected=$1 # 0 = vm doesn't exist, 1 = vm is stopped, 2 = vm is running, -1 = don't care, just return the status
     local message=$2
     local status=0
 
@@ -159,7 +159,8 @@ check_vm() {
 
     [ "$expected" == "$status" ] && return $status
 
-    if [ "$expected" -ne 0 -a "$status" -eq 0 ]; then
+    if [ "$status" -eq 0 ]; then
+        [ "$expected" -eq 0 ] && return $status
         echo "[dhyve] vm is missing, try running 'dhyve init' first"
     else
         [ "$expected" -eq -1 ] && return $status
