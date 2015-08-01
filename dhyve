@@ -42,36 +42,30 @@ get_ip() {
     ' /var/db/dhcpd_leases
 }
 
-config_get() {
+config() {
+    local cmd=$1; shift
+    local key=$1; shift
     local file="$HOME/.dhyve/vm.cfg"
     [ ! -e "$file" ] && touch "$file"
-    local key=$1
-    local value=$(sed -n "s/^$key[ ]*=[ ]*\(.*\)/\1/p" "$file")
 
-    [ -z "$value" ] && return 1
-    echo "$value"
-}
-
-config_set() {
-    local file="$HOME/.dhyve/vm.cfg"
-    [ ! -e "$file" ] && touch "$file"
-    local key=$1
-    local val=$2
-    local old_val; old_val=$(config_get "$key")
-
-    if [ $? == 0 ]; then
-        sed -i -e "s/^$key[ ]*=[ ]*.*/$key=$val/g" "$file"
-    else
-        echo "$key=$val" >> "$file"
-    fi
-}
-
-config_del() {
-    local file="$HOME/.dhyve/vm.cfg"
-    [ ! -e "$file" ] && touch "$file"
-    local key=$1
-
-    sed -i -e "/^$key[ ]*=[ ]*.*/d" "$file"
+    case "$cmd" in
+        get)
+            local value=$(sed -n "s/^$key[ ]*=[ ]*\(.*\)/\1/p" "$file")
+            [ -z "$value" ] && return 1
+            echo "$value"
+            ;;
+        set)
+            local value=$(sed -n "s/^$key[ ]*=[ ]*\(.*\)/\1/p" "$file")
+            if [ -z "$value" ]; then
+                echo "$key=$@" >> "$file"
+            else
+                sed -i -e "s/^$key[ ]*=[ ]*.*/$key=$val/g" "$file"
+            fi
+            ;;
+        del)
+            sed -i -e "/^$key[ ]*=[ ]*.*/d" "$file"
+            ;;
+    esac
 }
 
 # this function copied from https://github.com/ailispaw/boot2docker-xhyve and modified lightly
@@ -107,7 +101,7 @@ set_exports() {
 
 get_release() {
     local repo=$1
-    local token=$(config_get github_token)
+    local token=$(config get github_token)
     local args
     if [ $? -eq 0 ]; then
         args="-H \"Authorization: token $token\""
@@ -140,13 +134,13 @@ check_vm() {
     local status=0
 
     if [ -e "$HOME/.dhyve" -a -e "$HOME/.dhyve/vm.cfg" ]; then
-        local pid; pid=$(config_get pid)
+        local pid; pid=$(config get pid)
         if [ $? != 0 ]; then
             status=1
         else
             ps $pid >/dev/null 2>&1
             if [ $? != 0 ]; then
-                config_del pid
+                config del pid
                 status=1
             else
                 status=2
@@ -171,7 +165,7 @@ download_dhyveos() {
 
     curl -Lso "$HOME/.dhyve/bzImage" "https://github.com/nlf/dhyve-os/releases/download/$version/bzImage"
     curl -Lso "$HOME/.dhyve/rootfs.cpio.xz" "https://github.com/nlf/dhyve-os/releases/download/$version/rootfs.cpio.xz"
-    config_set version "$version"
+    config set version "$version"
 }
 
 upgrade_dhyveos() {
@@ -182,7 +176,7 @@ upgrade_dhyveos() {
         return 1
     fi
 
-    if [ "$(config_get version)" != "$version" ]; then
+    if [ "$(config get version)" != "$version" ]; then
         echo -n "[dhyve] upgrading vm to version $version.."
         download_dhyveos "$version"
         echo "done"
@@ -231,11 +225,11 @@ vm_init() {
     echo -n "[dhyve] saving options.."
     local uuid="2996454B-06DE-43B0-9FC6-9E9F38D1DCAE" # $(uuidgen)
     local name="dhyve"
-    config_set name "$name"
+    config set name "$name"
     local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 31,lpc -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/bzImage,$HOME/.dhyve/rootfs.cpio.xz"
     local kargs="console=ttyS0 hostname=$name"
-    config_set args "$args"
-    config_set kargs "$kargs"
+    config set args "$args"
+    config set kargs "$kargs"
     echo "done"
 
     echo -n "[dhyve] generating a new ssh key.."
@@ -280,7 +274,7 @@ vm_destroy() {
 }
 
 register_vm() {
-    local name=$(config_get name)
+    local name=$(config get name)
     local ip=$(get_ip $name)
     sed -i '' "s/.* $name.vm$/$ip $name.vm/g" /etc/hosts
     grep -q "$ip $name.vm" /etc/hosts || echo "$ip $name.vm" >> /etc/hosts
@@ -302,11 +296,11 @@ vm_up() {
 
     echo -n "[dhyve] starting.."
     set_exports
-    local args=$(config_get args)
-    local kargs=$(config_get kargs)
+    local args=$(config get args)
+    local kargs=$(config get kargs)
     nohup xhyve $args,"$kargs" </dev/null >/dev/null 2>&1 &
-    config_set pid "$!"
-    local name=$(config_get name)
+    config set pid "$!"
+    local name=$(config get name)
     until ping -c 1 $(get_ip $name) >/dev/null 2>&1; do
         echo -n "."
         sleep 0.5
@@ -321,13 +315,13 @@ vm_down() {
     enforce_root '[ "$USER" == "root" ]' down "$@"
 
     echo -n "[dhyve] stopping.."
-    local pid=$(config_get pid)
+    local pid=$(config get pid)
     kill $pid
     while ps $pid >/dev/null; do
         echo -n "."
         sleep 0.5
     done
-    config_del pid
+    config del pid
     echo "done"
 }
 
@@ -339,23 +333,23 @@ vm_status() {
         status="stopped"
     fi
 
-    local name=$(config_get name)
+    local name=$(config get name)
     echo "[dhyve] status: $status"
     echo "        name:   $name"
     if [ "$status" == "running" ]; then
-        echo "        pid:    $(config_get pid)"
+        echo "        pid:    $(config get pid)"
         echo "        ip:     $(get_ip "$name") [dhyve.vm]"
     fi
     echo "        disk:   $(du -h "$HOME/.dhyve/disk.img")"
-    echo "        args:   $(config_get args)"
-    echo "        kargs:  $(config_get kargs)"
+    echo "        args:   $(config get args)"
+    echo "        kargs:  $(config get kargs)"
     echo "        versions:"
     echo "            dhyve:  $version"
-    echo "            vm:     $(config_get version)"
+    echo "            vm:     $(config get version)"
 }
 
 vm_env() {
-    local name=$(config_get name)
+    local name=$(config get name)
     local ip=$(get_ip $name)
     if [ -z "$ip" ]; then
         echo "[dhyve] has not been started yet, please run 'dhyve up'" >&2
