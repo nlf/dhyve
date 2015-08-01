@@ -33,6 +33,8 @@ Ports exposed from a docker container will be available on the vm, which will ha
 
 An NFS share is created on your host to expose the `/Users` directory to the vm network as well. It will *only* allow connections from the dhyve vm, so should be reasonably secure.
 
+If you need to access the virtual machine directly, an entry will be added to `/etc/hosts` with the name `dhyve.vm`. In addition to that, a configuration section will be added to `~/.ssh/config` so that you can use `ssh dhyve.vm`.
+
 See `dhyve help` for more usage information.
 
 

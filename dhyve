@@ -9,8 +9,6 @@ print_help () {
     echo "    destroy: destroy an existing vm"
     echo "    up:      start the dhyve vm"
     echo "    down:    stop the dhyve vm"
-    echo "    ssh:     login to the vm via ssh"
-    echo "    scp:     pass configuration to scp to allow copying files to/from the dhyve vm"
     echo "    status:  print the vm's status"
     echo "    env:     output environment variables to use docker with the dhyve vm"
     echo "             to use, eval \"\$(dhyve env)\""
@@ -333,6 +331,23 @@ vm_destroy() {
     echo "done"
 }
 
+register_vm() {
+    local name=$(config_get name)
+    local ip=$(get_ip $name)
+    sed -i '' "s/.* $name.vm$/$ip $name.vm/g" /etc/hosts
+    grep -q "$ip $name.vm" /etc/hosts || echo "$ip $name.vm" >> /etc/hosts
+
+    [ ! -e "$HOME/.ssh/config" ] && touch "$HOME/.ssh/config"
+    grep -q "Host $name.vm" "$HOME/.ssh/config"
+    if [ $? != 0 ]; then
+        echo "Host $name.vm" >> "$HOME/.ssh/config"
+        echo "  User docker" >> "$HOME/.ssh/config"
+        echo "  IdentityFile $HOME/.dhyve/dhyve_key" >> "$HOME/.ssh/config"
+        echo "  StrictHostKeyChecking no" >> "$HOME/.ssh/config"
+        echo "  UserKnownHostsFile /dev/null" >> "$HOME/.ssh/config"
+    fi
+}
+
 vm_up () {
     check_vm_exists
     local status; status=$(check_vm_running)
@@ -364,10 +379,7 @@ vm_up () {
         echo -n "."
         sleep 0.5
     done
-
-    local ip=$(get_ip $name)
-    sed -i '' "s/.* $name.vm$/$ip $name.vm/g" /etc/hosts
-    grep -q "$ip $name.vm" /etc/hosts || echo "$ip $name.vm" >> /etc/hosts
+    register_vm
     echo "done"
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
@@ -416,20 +428,6 @@ vm_status () {
     echo "            vm:     $(config_get version)"
 }
 
-vm_ssh () {
-    check_vm_exists
-    check_vm_running
-    local name=$(config_get name)
-    echo "[dhyve] starting ssh session.."
-    ssh -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no docker@$name.vm "$@"
-}
-
-vm_scp () {
-    check_vm_exists
-    check_vm_running
-    scp -i "$HOME/.dhyve/dhyve_key" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$@"
-}
-
 vm_env () {
     local name=$(config_get name)
     local ip=$(get_ip $name)
@@ -460,12 +458,6 @@ case "$cmd" in
         ;;
     status)
         vm_status
-        ;;
-    ssh)
-        vm_ssh "$@"
-        ;;
-    scp)
-        vm_scp "$@"
         ;;
     env)
         vm_env
