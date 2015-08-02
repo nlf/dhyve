@@ -5,20 +5,21 @@ print_help() {
     echo "Usage: dhyve <command> [options]"
     echo ""
     echo "  available commands:"
-    echo "    init:    initialize a new vm"
-    echo "    destroy: destroy an existing vm"
-    echo "    up:      start the dhyve vm"
-    echo "    down:    stop the dhyve vm"
-    echo "    status:  print the vm's status"
-    echo "    env:     output environment variables to use docker with the dhyve vm"
-    echo "             to use, eval \"\$(dhyve env)\""
-    echo "    upgrade: upgrade your vm to the newest image"
+    echo "    init:     initialize a new vm"
+    echo "    destroy:  destroy an existing vm"
+    echo "    up:       start the dhyve vm"
+    echo "    down:     stop the dhyve vm"
+    echo "    status:   print the vm's status"
+    echo "    env:      output environment variables to use docker with the dhyve vm"
+    echo "              to use, eval \"\$(dhyve env)\""
+    echo "    upgrade:  upgrade your vm to the newest image"
     echo ""
     echo "  available options for init command"
-    echo "    -n:      name of the vm to create [dhyve]"
-    echo "    -m:      amount of memory to allocate to the vm [2G]"
-    echo "    -d:      size of disk to create, in gigabytes [10]"
-    echo "    -c:      number of cpus to assign [1]"
+    echo "    -n:       name of the vm to create [dhyve]"
+    echo "    -m:       amount of memory to allocate to the vm [2G]"
+    echo "    -d:       size of disk to create, in gigabytes [10]"
+    echo "    -c:       number of cpus to assign [1]"
+    echo "    --default: force setting this vm to the default"
     return 1
 }
 
@@ -236,9 +237,6 @@ vm_init() {
                 case "$OPTARG" in
                     default)
                         default=true
-                        ;;
-                    no-default)
-                        default=false
                         ;;
                 esac
         esac
