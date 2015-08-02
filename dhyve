@@ -299,9 +299,8 @@ vm_up() {
     nohup xhyve $args,"$kargs" </dev/null >"$HOME/.dhyve/vm.log" 2>&1 &
     config set pid "$!"
     local name=$(config get name)
-    until ping -c 1 $(get_ip $name) >/dev/null 2>&1; do
+    until ping -c 1 -t 1 $(get_ip $name) >/dev/null 2>&1; do
         echo -n "."
-        sleep 0.5
     done
     register_vm
     echo "done"
