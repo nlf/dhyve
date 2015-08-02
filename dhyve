@@ -64,7 +64,7 @@ config() {
             fi
             ;;
         del)
-            sed -i -e "/^$key[ ]*=[ ]*.*/d" "$file"
+            sed -i '' "/^$key[ ]*=[ ]*.*/d" "$file"
             ;;
     esac
 }
