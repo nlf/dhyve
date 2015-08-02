@@ -2,7 +2,7 @@
 version="v2.0.0"
 
 print_help() {
-    echo "Usage: dhyve <command> [options]"
+    echo "Usage: dhyve <command> <vm_name> [options]"
     echo ""
     echo "  available commands:"
     echo "    init:     initialize a new vm"
