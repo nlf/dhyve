@@ -316,7 +316,7 @@ vm_down() {
     kill $pid
     while ps $pid >/dev/null; do
         echo -n "."
-        sleep 0.5
+        sleep 1
     done
     config del pid
     echo "done"
