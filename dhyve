@@ -60,7 +60,7 @@ config() {
             if [ -z "$value" ]; then
                 echo "$key=$@" >> "$file"
             else
-                sed -i -e "s/^$key[ ]*=[ ]*.*/$key=$@/g" "$file"
+                sed -i '' "s/^$key[ ]*=[ ]*.*/$key=$@/g" "$file"
             fi
             ;;
         del)
