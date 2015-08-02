@@ -296,7 +296,7 @@ vm_up() {
     set_exports
     local args=$(config get args)
     local kargs=$(config get kargs)
-    nohup xhyve $args,"$kargs" </dev/null >/dev/null 2>&1 &
+    nohup xhyve $args,"$kargs" </dev/null >"$HOME/.dhyve/vm.log" 2>&1 &
     config set pid "$!"
     local name=$(config get name)
     until ping -c 1 $(get_ip $name) >/dev/null 2>&1; do
