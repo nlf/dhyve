@@ -23,7 +23,8 @@ print_help() {
 }
 
 get_ip() {
-    local name=$1
+    local vm=$1
+    local uuid=$(config "$vm" get uuid)
     awk '
     {
       if ($1 ~ /^name/) {
@@ -38,15 +39,16 @@ get_ip() {
       }
     }
     END {
-        print ip_addresses["'$name'"]
+        print ip_addresses["'$uuid'"]
     }
     ' /var/db/dhcpd_leases
 }
 
 config() {
+    local vm=$1; shift
     local cmd=$1; shift
     local key=$1; shift
-    local file="$HOME/.dhyve/vm.cfg"
+    local file="$HOME/.dhyve/$vm/vm.cfg"
     [ ! -e "$file" ] && touch "$file"
 
     case "$cmd" in
@@ -101,8 +103,9 @@ set_exports() {
 }
 
 get_release() {
-    local repo=$1
-    local token=$(config get github_token)
+    local vm=$1
+    local repo=$2
+    local token=$(config "$vm" get github_token)
     local args
     if [ $? -eq 0 ]; then
         args="-H \"Authorization: token $token\""
@@ -130,18 +133,19 @@ enforce_root() {
 }
 
 check_vm() {
-    local expected=$1 # 0 = vm doesn't exist, 1 = vm is stopped, 2 = vm is running, -1 = don't care, just return the status
-    local message=$2
+    local vm=$1
+    local expected=$2 # 0 = vm doesn't exist, 1 = vm is stopped, 2 = vm is running, -1 = don't care, just return the status
+    local message=$3
     local status=0
 
-    if [ -e "$HOME/.dhyve" -a -e "$HOME/.dhyve/vm.cfg" ]; then
-        local pid; pid=$(config get pid)
+    if [ -e "$HOME/.dhyve/$vm" -a -e "$HOME/.dhyve/$vm/vm.cfg" ]; then
+        local pid; pid=$(config "$vm" get pid)
         if [ $? != 0 ]; then
             status=1
         else
             ps $pid >/dev/null 2>&1
             if [ $? != 0 ]; then
-                config del pid
+                config "$vm" del pid
                 status=1
             else
                 status=2
@@ -153,7 +157,7 @@ check_vm() {
 
     if [ "$status" -eq 0 ]; then
         [ "$expected" -eq 0 ] && return $status
-        echo "[dhyve] vm is missing, try running 'dhyve init' first"
+        echo "[dhyve] vm named $vm is missing, try running 'dhyve init $vm' first"
     else
         [ "$expected" -eq -1 ] && return $status
         echo "[dhyve] $message"
@@ -162,24 +166,26 @@ check_vm() {
 }
 
 download_dhyveos() {
-    local version=$1
+    local vm=$1
+    local version=$2
 
-    curl -Lso "$HOME/.dhyve/bzImage" "https://github.com/nlf/dhyve-os/releases/download/$version/bzImage"
-    curl -Lso "$HOME/.dhyve/rootfs.cpio.xz" "https://github.com/nlf/dhyve-os/releases/download/$version/rootfs.cpio.xz"
-    config set version "$version"
+    curl -Lso "$HOME/.dhyve/$vm/bzImage" "https://github.com/nlf/dhyve-os/releases/download/$version/bzImage"
+    curl -Lso "$HOME/.dhyve/$vm/rootfs.cpio.xz" "https://github.com/nlf/dhyve-os/releases/download/$version/rootfs.cpio.xz"
+    config "$vm" set version "$version"
 }
 
 upgrade_dhyveos() {
-    check_vm 1 "is currently running, please stop it first"
-    local version; version=$(get_release nlf/dhyve-os)
+    local vm; [ -z "$1" ] && vm=default || vm=$1
+    check_vm "$vm" 1 "vm named $vm is currently running, please stop it first"
+    local version; version=$(get_release "$vm" nlf/dhyve-os)
     if [ $? != 0 ]; then
         echo "$version"
         return 1
     fi
 
-    if [ "$(config get version)" != "$version" ]; then
+    if [ "$(config $vm get version)" != "$version" ]; then
         echo -n "[dhyve] upgrading vm to version $version.."
-        download_dhyveos "$version"
+        download_dhyveos "$vm" "$version"
         echo "done"
     else
         echo "[dhyve] latest vm version ($version) already installed"
@@ -198,15 +204,13 @@ vm_init() {
         brew install xhyve
     fi
 
-    check_vm 0 "it looks like a vm already exists, use 'dhyve destroy' to remove it and try again"
-    mkdir -p $HOME/.dhyve
-
+    local default
     local name=dhyve
     local mem=2G
     local disk=10
     local cpu=1
 
-    while getopts "m:d:c:n:" opt; do
+    while getopts -- "m:d:c:n:-:" opt; do
         case $opt in
             m)
                 mem=$(echo $OPTARG | tr '[:lower:]' '[:upper:]')
@@ -219,60 +223,96 @@ vm_init() {
                 ;;
             n)
                 name=$OPTARG
+                if [ "$name" == "default" ]; then
+                    echo "[dhyve] \"default\" is an invalid name, please choose another"
+                    exit 1
+                fi
                 ;;
             :)
                 echo "[dhyve] -$OPTARG requires an argument."
                 exit 1
+                ;;
+            -)
+                case "$OPTARG" in
+                    default)
+                        default=true
+                        ;;
+                    no-default)
+                        default=false
+                        ;;
+                esac
         esac
     done
 
+    check_vm "$name" 0 "it looks like a vm named $name already exists, use 'dhyve destroy $name' to remove it and try again"
+    mkdir -p "$HOME/.dhyve"
+
+    if [ -z "$default" ]; then
+        if [ ! -d "$HOME/.dhyve" ]; then
+            default=true
+        else
+            local dir_count=$(ls -l "$HOME/.dhyve" | grep ^d | wc -l | tr -d '[[:space:]]')
+            [ "$dir_count" == 0 ] && default=true
+        fi
+    fi
+
+    mkdir -p "$HOME/.dhyve/$name"
+    [ "$default" == "true" ] && ln -sf "$HOME/.dhyve/$name" "$HOME/.dhyve/default"
+
     echo -n "[dhyve] saving options.."
-    local uuid="2996454B-06DE-43B0-9FC6-9E9F38D1DCAE" # $(uuidgen)
-    config set name "$name"
-    local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 31,lpc -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/bzImage,$HOME/.dhyve/rootfs.cpio.xz"
-    local kargs="console=ttyS0 hostname=$name"
-    config set args "$args"
-    config set kargs "$kargs"
+    local uuid=$(uuidgen)
+    config "$name" set uuid "$uuid"
+    config "$name" set name "$name"
+    local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 31,lpc -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/$name/disk.img -U $uuid -f kexec,$HOME/.dhyve/$name/bzImage,$HOME/.dhyve/$name/rootfs.cpio.xz"
+    local kargs="console=ttyS0 hostname=$name uuid=$uuid"
+    config "$name" set args "$args"
+    config "$name" set kargs "$kargs"
     echo "done"
 
     echo -n "[dhyve] generating a new ssh key.."
-    ssh-keygen -t rsa -b 2048 -P "" -f "$HOME/.dhyve/key" >/dev/null 2>&1
+    ssh-keygen -t rsa -b 2048 -P "" -f "$HOME/.dhyve/$name/key" >/dev/null 2>&1
     echo "done"
 
     echo -n "[dhyve] generating a disk image.."
     local tempdir=$(mktemp -d -t dhyve)
     echo "dhyve, please format-me" > "$tempdir/dhyve, please format-me"
     mkdir -p "$tempdir/.ssh"
-    cp "$HOME/.dhyve/key.pub" "$tempdir/.ssh/authorized_keys"
-    tar cf "$HOME/.dhyve/disk.img" --directory="$tempdir" "dhyve, please format-me" ".ssh/authorized_keys"
+    cp "$HOME/.dhyve/$name/key.pub" "$tempdir/.ssh/authorized_keys"
+    tar cf "$HOME/.dhyve/$name/disk.img" --directory="$tempdir" "dhyve, please format-me" ".ssh/authorized_keys"
     echo -n "."
-    dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/disk.img" 2>/dev/null
+    dd if=/dev/zero bs=1g count=$disk >> "$HOME/.dhyve/$name/disk.img" 2>/dev/null
     echo "done"
 
-    local version; version=$(get_release nlf/dhyve-os)
+    local version; version=$(get_release "$name" nlf/dhyve-os)
     if [ $? != 0 ]; then
         echo "$version"
         return 1
     fi
 
     echo -n "[dhyve] downloading vm version $version.."
-    download_dhyveos "$version"
+    download_dhyveos "$name" "$version"
     echo "done"
 
-    echo "[dhyve] finished creating vm, to start it run 'dhyve up'"
+    echo "[dhyve] finished creating vm, to start it run 'dhyve up $name'"
 }
 
 vm_destroy() {
-    check_vm 1 "is running, you should stop it before attempting to destroy it"
-    enforce_root '[ -w "$HOME/.dhyve" ]' destroy $@
+    local vm; [ -z "$1" ] && vm=default || vm=$1
+    check_vm "$vm" 1 "is running, you should stop it before attempting to destroy it"
+    enforce_root '[ -w "$HOME/.dhyve/$name" ]' destroy $@
 
     echo -n "[dhyve] destroying vm.."
-    rm -rf "$HOME/.dhyve"
+    if [ "$vm" == "default" ]; then
+        local real_dir=$(readlink "$HOME/.dhyve/default")
+        rm -rf "$real_dir"
+    fi
+    rm -rf "$HOME/.dhyve/$vm"
     echo "done"
 }
 
 register_vm() {
-    local name=$(config get name)
+    local vm=$1
+    local name=$(config "$vm" get name)
     local ip=$(get_ip $name)
     sed -i '' "s/.* $name.vm$/$ip $name.vm/g" /etc/hosts
     grep -q "$ip $name.vm" /etc/hosts || echo "$ip $name.vm" >> /etc/hosts
@@ -282,74 +322,88 @@ register_vm() {
     if [ $? != 0 ]; then
         echo "Host $name.vm" >> "$HOME/.ssh/config"
         echo "  User docker" >> "$HOME/.ssh/config"
-        echo "  IdentityFile $HOME/.dhyve/key" >> "$HOME/.ssh/config"
+        echo "  IdentityFile $HOME/.dhyve/$name/key" >> "$HOME/.ssh/config"
         echo "  StrictHostKeyChecking no" >> "$HOME/.ssh/config"
         echo "  UserKnownHostsFile /dev/null" >> "$HOME/.ssh/config"
     fi
 }
 
 vm_up() {
-    check_vm 1 "is already running"
+    local vm; [ -z "$1" ] && vm=default || vm=$1
+    check_vm "$vm" 1 "is already running"
     enforce_root '[ "$USER" == "root" ]' up $@
 
     echo -n "[dhyve] starting.."
     set_exports
-    local args=$(config get args)
-    local kargs=$(config get kargs)
-    nohup xhyve $args,"$kargs" </dev/null >"$HOME/.dhyve/vm.log" 2>&1 &
-    config set pid "$!"
-    local name=$(config get name)
-    until ping -c 1 -t 1 $(get_ip $name) >/dev/null 2>&1; do
+    local args=$(config "$vm" get args)
+    local kargs=$(config "$vm" get kargs)
+    nohup xhyve $args,"$kargs" </dev/null >"$HOME/.dhyve/$vm/vm.log" 2>&1 &
+    config "$vm" set pid "$!"
+    local name=$(config "$vm" get name)
+    local ip=$(get_ip "$name")
+
+    while [ -z "$ip" ]; do
+        ip=$(get_ip "$name")
+        sleep 1
+    done
+
+    until ping -c 1 -t 1 $ip >/dev/null 2>&1; do
         echo -n "."
     done
-    register_vm
+
+    register_vm "$vm"
     echo "done"
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
 
 vm_down() {
-    check_vm 2 "is not running"
+    local vm; [ -z "$1" ] && vm=default || vm=$1
+    check_vm "$vm" 2 "is not running"
     enforce_root '[ "$USER" == "root" ]' down "$@"
 
     echo -n "[dhyve] stopping.."
-    local pid=$(config get pid)
+    local pid=$(config "$vm" get pid)
     kill $pid
     while ps $pid >/dev/null; do
         echo -n "."
         sleep 1
     done
-    config del pid
+    config "$vm" del pid
     echo "done"
 }
 
 vm_status() {
-    check_vm -1
+    local vm; [ -z "$1" ] && vm=default || vm=$1
+    check_vm "$vm" -1
     if [ $? == 2 ]; then
         status="running"
     else
         status="stopped"
     fi
 
-    local name=$(config get name)
+    local name=$(config "$vm" get name)
+    local ip=$(get_ip "$name")
+    [ -z "$ip" ] && ip="not available"
     echo "[dhyve] status: $status"
     echo "        name:   $name"
     if [ "$status" == "running" ]; then
-        echo "        pid:    $(config get pid)"
-        echo "        ip:     $(get_ip "$name") [$name.vm]"
+        echo "        pid:    $(config "$vm" get pid)"
+        echo "        ip:     $ip [$name.vm]"
     fi
-    echo "        disk:   $(du -h "$HOME/.dhyve/disk.img")"
-    echo "        args:   $(config get args)"
-    echo "        kargs:  $(config get kargs)"
+    echo "        disk:   $(du -h "$HOME/.dhyve/$name/disk.img")"
+    echo "        args:   $(config $vm get args)"
+    echo "        kargs:  $(config $vm get kargs)"
     echo "        versions:"
     echo "            dhyve:  $version"
-    echo "            vm:     $(config get version)"
+    echo "            vm:     $(config $vm get version)"
 }
 
 vm_env() {
-    local name=$(config get name)
+    local vm; [ -z "$1" ] && vm=default || vm=$1
+    local name=$(config "$vm" get name)
     local ip=$(get_ip $name)
     if [ -z "$ip" ]; then
-        echo "[dhyve] has not been started yet, please run 'dhyve up'" >&2
+        echo "[dhyve] $name has not been started yet, please run 'dhyve up $name'" >&2
         return 1
     fi
 
@@ -365,22 +419,22 @@ case "$cmd" in
         vm_init "$@"
         ;;
     destroy)
-        vm_destroy
+        vm_destroy "$@"
         ;;
     up|start)
-        vm_up
+        vm_up "$@"
         ;;
     down|stop)
-        vm_down
+        vm_down "$@"
         ;;
     status)
-        vm_status
+        vm_status "$@"
         ;;
     env)
-        vm_env
+        vm_env "$@"
         ;;
     upgrade)
-        upgrade_dhyveos
+        upgrade_dhyveos "$@"
         ;;
     *)
         print_help
