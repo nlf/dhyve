@@ -23,7 +23,8 @@ print_help() {
 }
 
 get_ip() {
-    local name=$1
+    local vm=$1
+    local uuid=$(config get uuid)
     awk '
     {
       if ($1 ~ /^name/) {
@@ -38,7 +39,7 @@ get_ip() {
       }
     }
     END {
-        print ip_addresses["'$name'"]
+        print ip_addresses["'$uuid'"]
     }
     ' /var/db/dhcpd_leases
 }
@@ -228,9 +229,10 @@ vm_init() {
 
     echo -n "[dhyve] saving options.."
     local uuid="2996454B-06DE-43B0-9FC6-9E9F38D1DCAE" # $(uuidgen)
+    config set uuid "$uuid"
     config set name "$name"
     local args="-A -m $mem -c $cpu -s 0:0,hostbridge -l com1,stdio -s 31,lpc -s 2:0,virtio-net -s 4,virtio-blk,$HOME/.dhyve/disk.img -U $uuid -f kexec,$HOME/.dhyve/bzImage,$HOME/.dhyve/rootfs.cpio.xz"
-    local kargs="console=ttyS0 hostname=$name"
+    local kargs="console=ttyS0 hostname=$name uuid=$uuid"
     config set args "$args"
     config set kargs "$kargs"
     echo "done"
