@@ -52,20 +52,20 @@ config() {
 
     case "$cmd" in
         get)
-            local value=$(sed -n "s/^$key[ ]*=[ ]*\(.*\)/\1/p" "$file")
+            local value=$(/usr/bin/sed -n "s/^$key[ ]*=[ ]*\(.*\)/\1/p" "$file")
             [ -z "$value" ] && return 1
             echo "$value"
             ;;
         set)
-            local value=$(sed -n "s/^$key[ ]*=[ ]*\(.*\)/\1/p" "$file")
+            local value=$(/usr/bin/sed -n "s/^$key[ ]*=[ ]*\(.*\)/\1/p" "$file")
             if [ -z "$value" ]; then
                 echo "$key=$@" >> "$file"
             else
-                sed -i '' "s/^$key[ ]*=[ ]*.*/$key=$@/g" "$file"
+                /usr/bin/sed -i '' "s/^$key[ ]*=[ ]*.*/$key=$@/g" "$file"
             fi
             ;;
         del)
-            sed -i '' "/^$key[ ]*=[ ]*.*/d" "$file"
+            /usr/bin/sed -i '' "/^$key[ ]*=[ ]*.*/d" "$file"
             ;;
     esac
 }
@@ -276,7 +276,7 @@ vm_destroy() {
 register_vm() {
     local name=$(config get name)
     local ip=$(get_ip $name)
-    sed -i '' "s/.* $name.vm$/$ip $name.vm/g" /etc/hosts
+    /usr/bin/sed -i '' "s/.* $name.vm$/$ip $name.vm/g" /etc/hosts
     grep -q "$ip $name.vm" /etc/hosts || echo "$ip $name.vm" >> /etc/hosts
 
     [ ! -e "$HOME/.ssh/config" ] && touch "$HOME/.ssh/config"
