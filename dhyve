@@ -73,6 +73,8 @@ config() {
 # this function copied from https://github.com/ailispaw/boot2docker-xhyve and modified lightly
 set_exports() {
     local vmnet="/Library/Preferences/SystemConfiguration/com.apple.vmnet"
+    [ ! -e "$vmnet" ] && return 1
+
     local addr=$(defaults read ${vmnet} Shared_Net_Address)
     local mask=$(defaults read ${vmnet} Shared_Net_Mask)
 
@@ -294,8 +296,10 @@ vm_up() {
     check_vm 1 "is already running"
     enforce_root '[ "$USER" == "root" ]' up $@
 
+    local nfs_fail
     echo -n "[dhyve] starting.."
     set_exports
+    [ $? -eq 1 ] && nfs_fail=1
     local args=$(config get args)
     local kargs=$(config get kargs)
     nohup xhyve $args,"$kargs" </dev/null >"$HOME/.dhyve/vm.log" 2>&1 &
@@ -306,6 +310,7 @@ vm_up() {
     done
     register_vm
     echo "done"
+    [ "$nfs_fail" -eq 1 ] && echo "[dhyve] your vm has started, however since this is your first start we were unable to configure nfs shares. please run `dhyve down` and then `dhyve up` to restart the vm and enable the nfs share"
     chown -R $SUDO_USER "$HOME/.dhyve"
 }
 
