@@ -242,7 +242,7 @@ vm_init() {
     echo "done"
 
     echo -n "[dhyve] generating a disk image.."
-    local tempdir=$(mktemp -d -t dhyve)
+    local tempdir=$(/usr/bin/mktemp -d -t dhyve)
     echo "dhyve, please format-me" > "$tempdir/dhyve, please format-me"
     mkdir -p "$tempdir/.ssh"
     cp "$HOME/.dhyve/key.pub" "$tempdir/.ssh/authorized_keys"
