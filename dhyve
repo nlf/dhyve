@@ -73,7 +73,7 @@ config() {
 # this function copied from https://github.com/ailispaw/boot2docker-xhyve and modified lightly
 set_exports() {
     local vmnet="/Library/Preferences/SystemConfiguration/com.apple.vmnet"
-    [ ! -e "$vmnet" ] && return 1
+    [ ! -e "$vmnet.plist" ] && return 1
 
     local addr=$(defaults read ${vmnet} Shared_Net_Address)
     local mask=$(defaults read ${vmnet} Shared_Net_Mask)
