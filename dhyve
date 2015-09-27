@@ -362,7 +362,7 @@ vm_env() {
 
     echo "unset DOCKER_TLS_VERIFY"
     echo "unset DOCKER_CERT_PATH"
-    echo "export DOCKER_HOST=$ip:2375"
+    echo "export DOCKER_HOST=tcp://$ip:2375"
 }
 
 cmd=$1
