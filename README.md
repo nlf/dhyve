@@ -1,6 +1,7 @@
-A little helper script to make running boot2docker inside of xhyve simple
+## DEPRECATED
+This project has been deprecated. I'm only maintaining [dlite](https://github.com/nlf/dlite). If you want something like dhyve, look at docker-machine or [corectl](https://github.com/TheNewNormal/corectl).
 
-[![Join the chat at https://gitter.im/nlf/dhyve](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/nlf/dhyve?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+A little helper script to make running boot2docker inside of xhyve simple
 
 Installation
 ------------
